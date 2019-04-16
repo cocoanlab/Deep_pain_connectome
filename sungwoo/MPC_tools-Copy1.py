@@ -56,19 +56,21 @@ def making_full_path_list(dir_path_list, filenames_list):
 
 
 def load_nii(project_type, load_index, full_path_list, data_num, nan_to_zero=False, One_Hot=False):
+    X = []
     Y = []
 
     start = timeit.default_timer()
-    
-    temp_nii = nib.load(full_path_list[load_index[0]][data_num[0]]).get_data()
-    X = np.zeros((len(full_path_list[load_index[0]]),temp_nii.shape[0],temp_nii.shape[1],temp_nii.shape[2]), dtype='<f4') 
-    
     for index in load_index:
         for i in data_num:
-            
-            if project_type.upper()=='SEMIC':
+            temp_nii = nib.load(full_path_list[index][i]).get_data()
+            temp_nii = temp_nii[np.newaxis]
 
-                X[i] = nib.load(full_path_list[index][i]).get_data()
+            if len(X) == 0:
+                X = temp_nii
+            else:
+                X = np.concatenate((X, temp_nii), axis=0)
+                    
+            if project_type.upper()=='SEMIC':
 
                 if 'model02_FIR_SPM_SINGLE_TRIAL' in full_path_list[index][i]:
                     label = 0
@@ -89,8 +91,6 @@ def load_nii(project_type, load_index, full_path_list, data_num, nan_to_zero=Fal
                     print('\n')
                     
             elif project_type.upper()=='CAPS':
-                
-                X[i] = nib.load(full_path_list[index][i]).get_data()    
                 
                 if 'stim' in full_path_list[index][i]:
                     label = 0
@@ -129,3 +129,33 @@ def load_nii(project_type, load_index, full_path_list, data_num, nan_to_zero=Fal
     print("Y shape is {} ".format(Y.shape))
     
     return X, Y
+
+
+
+def flatten_nii(X, np_to_pd=False):
+    flatten_X = []
+
+    start = timeit.default_timer()
+    for i in range(X.shape[0]):
+        temp_flatten_x = X[i,:,:,:].flatten()
+        temp_flatten_x = temp_flatten_x[np.newaxis,:]
+        if i == 0:
+            flatten_X = temp_flatten_x
+        else:
+            flatten_X = np.concatenate((flatten_X, temp_flatten_x),axis=0)
+
+        if i%100 == 0:
+            print("***  Finished Flatten {}th Data  ***".format(i+1))
+            stop = timeit.default_timer()
+            check_time = stop-start
+            now = datetime.datetime.now()
+            print("###  Duration Time  : {} minutes   {} seconds       ###".format(int(check_time)//60, int(check_time)%60))
+            print("###  Excecuted Time : {}  ###".format(now))
+            print('\n')
+
+    if np_to_pd:
+        flatten_X = pd.DataFrame(flatten_X)
+        
+    print("Result's shape is {} ".format(flatten_X.shape))
+    
+    return flatten_X
