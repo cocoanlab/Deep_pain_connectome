@@ -159,10 +159,11 @@ class create():
         stage5_dense = tf.reshape(stage5_dense, [-1, num_nodes])
         
         fc1 = fc(stage5_dense, num_nodes, 4096, bn=True, relu=True, is_train=self.is_train, name='fc1')
+        fc1 = dropout(fc1, self.keep_prob)
         fc2 = fc(fc1, 4096, 4096, bn=True, relu=True, is_train=self.is_train, name='fc2')
-        fc3 = fc(fc2, 4096, 4096, bn=True, relu=True, is_train=self.is_train, name='fc3')
+        fc2 = dropout(fc1, self.keep_prob)
         
-        self.output = fc(fc1, 4096, self.num_classes, bn=False, relu=False, name='output')
+        self.output = fc(fc2, 4096, self.num_classes, bn=False, relu=False, name='output')
 
 
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
@@ -179,18 +180,8 @@ class create():
                 optimizer = tf.train.AdadeltaOptimizer(learning_rate,rho=0.95,epsilon=1e-09)
             else : raise ValueError("{} optimizer doesn't exist.".format(optimizer_type))
 
-            trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-
-            grads = tf.gradients(loss_op, trainable_vars)
-
-            with tf.name_scope("grad_norms"):
-                for v, grad in zip(trainable_vars, grads):
-                    if grad is not None :
-                        grad_norm_op = tf.nn.l2_loss(grad, name=format(v.name[:-2]))
-                        tf.add_to_collection("grads", grad_norm_op)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
             with tf.control_dependencies(update_ops):
-                train_op = optimizer.apply_gradients(zip(grads, trainable_vars), name="train_op")
+                train_op = optimizer.minimize(loss_op)
 
         return train_op
