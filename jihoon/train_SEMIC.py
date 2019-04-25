@@ -33,16 +33,15 @@ with net.sess as sess:
                 for _ in range(len(semic.train_subj_list if phase == 'train' else semic.valid_subj_list)):
                     semic.load(phase)
                     
-                    feed_dict = {net.x: semic.batchset['fmri'][i],
-                                 net.y: semic.batchset['labels'][i],
-                                 net.keep_prob: 0.7 if phase=='train' else 1.0,
-                                 net.is_train : True if phase=='train' else False}
-                    
-                    if phase == 'train' : feed_dict.update({net.lr : 1. })
-                    
                     for i in range(len(semic.batchset['labels'])):
+                        feed_dict = {net.x: semic.batchset['fmri'][i],
+                                     net.y: semic.batchset['labels'][i],
+                                     net.keep_prob: 0.7 if phase=='train' else 1.0,
+                                     net.is_train : True if phase=='train' else False}
+                        
                         if phase == 'train' :
-                            pred, cost, _ = sess.run(output+[net.train_op], feed_dict=feed_dict)
+                            feed_dict.update({net.lr : 1. })
+                            pred, cost, _ = sess.run(output_list+[net.train_op], feed_dict=feed_dict)
                         else :
                             pred, cost = sess.run(output_list, feed_dict=feed_dict)
 
