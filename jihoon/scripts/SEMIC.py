@@ -107,7 +107,7 @@ class load_dataset:
                     fmri_data.append(fmri[np.newaxis])
                     fmri_label.append([label])
 
-        fmri_data = np.concatenate(fmri_data, axis=0)
+        fmri_data = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
         fmri_label = np.concatenate(fmri_label, axis=0)
 
         if self.current_subj[phase]+1 == len(self.train_subj_list if phase == 'train' else self.valid_subj_list):
