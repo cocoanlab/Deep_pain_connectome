@@ -8,7 +8,7 @@ semic = load_dataset(workers=20, shuffle=True, batch_size = 20)
 
 net = inception_v4.create(data_shape=(79, 95, 79, 1), num_output=2, mode='classification',optimizer_type='adadelta', phase='train')
 
-num_epochs = 1000
+num_epochs = 10000
 lowest_loss=None
 highest_auc=None
 
@@ -19,7 +19,7 @@ with net.sess as sess:
         sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         
-        summary_writer = tf.summary.FileWriter("./out/", net.sess.graph)
+        summary_writer = tf.summary.FileWriter("./out/SEMIC", net.sess.graph)
         
         for epoch in range(num_epochs):
 

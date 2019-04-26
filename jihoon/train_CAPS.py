@@ -26,7 +26,7 @@ with net.sess as sess:
         sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         
-        summary_writer = tf.summary.FileWriter("./out/", net.sess.graph)
+        summary_writer = tf.summary.FileWriter("./out/CAPS", net.sess.graph)
         
         for epoch in range(num_epochs):
 
