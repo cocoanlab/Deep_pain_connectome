@@ -4,7 +4,10 @@ from sklearn import metrics
 
 import tensorflow as tf
 
-semic = load_dataset(workers=20, shuffle=True, batch_size = 20)
+ckpt_path = "./out/SEMIC/"
+phase_list = ['train', 'valid']
+
+semic = load_dataset(workers=20, shuffle=True, batch_size = 10)
 
 net = inception_v4.create(data_shape=(79, 95, 79, 1), num_output=2, mode='classification',optimizer_type='adadelta', phase='train')
 
@@ -19,18 +22,23 @@ with net.sess as sess:
         sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         
-        summary_writer = tf.summary.FileWriter("./out/SEMIC", net.sess.graph)
+        summary_writer = tf.summary.FileWriter(ckpt_path, net.sess.graph)
         
         for epoch in range(num_epochs):
 
-            feed_dict = {phase : {} for phase in ['train', 'valid']}
-            prediction = {phase : [] for phase in ['train', 'valid']}
-            loss = {phase : 0 for phase in ['train', 'valid']}
-            count = {phase : 0 for phase in ['train', 'valid']}
-            auc = {phase : 0 for phase in ['train', 'valid']}
+            feed_dict = {phase : {} for phase in phase_list}
             
-            for phase in ['train', 'valid']:
-                for _ in range(len(semic.train_subj_list if phase == 'train' else semic.valid_subj_list)):
+            loss = {phase : 0 for phase in phase_list}
+            count = {phase : 0 for phase in phase_list}
+            metrics = {phase : {} for phase in ['auc', 'sensitivity', 'specitivity']}
+            for method in metrics.keys():
+                metrics[method] = {phase : 0 for phase in phase_list}
+            
+            for phase in phase_list:
+                prediction = []
+                answer = []
+                
+                for _ in range(semic.num_subj_group[phase]):
                     semic.load(phase)
                     
                     for i in range(len(semic.batchset['labels'])):
@@ -45,26 +53,35 @@ with net.sess as sess:
                         else :
                             pred, cost = sess.run(output_list, feed_dict=feed_dict)
 
-                        pred = pred.argmax(-1)
-                        fpr, tpr, _ = metrics.roc_curve(semic.batchset['labels'][i], pred, pos_label=1)
-                        
-                        auc[phase] += metrics.auc(fpr, tpr)
+                        prediction.append(pred.argmax(-1))
+                        answer.append(semic.batchset['labels'][i])
                         loss[phase] += cost
                         count[phase] += 1
+                        
+                prediction = np.concatenate(prediction, axis=0)
+                answer = np.concatenate(answer, axis=0)
+                
+                fpr, tpr, _ = metrics.roc_curve(answer, prediction, pos_label=1)
+                tn, fp, fn, tp = metrics.confusion_matrix(answer, prediction).ravel()
+                metrics['auc'][phase] = metrics.auc(fpr, tpr)
+                metrics['sensitivity'][phase] = tp / (tp+fn)
+                metrics['specitivity'][phase] = tn / (tn+fp)
+            
             
             summ = tf.Summary()
-            for phase in ['train', 'valid']:
+            for phase in phase_list:
                 summ.value.add(tag=phase+'_loss', 
                                simple_value=loss[phase]/count[phase] if count[phase] !=0 else 0)
-                summ.value.add(tag=phase+'_auc', 
-                               simple_value=auc[phase]/count[phase] if count[phase] !=0 else 0)
+                for method in metrics.keys():
+                    summ.value.add(tag=phase+'_'+method, 
+                                   simple_value=metrics[method][phase] if count[phase] !=0 else 0)
                     
             summary_writer.add_summary(summ,epoch)
             
             if epoch > 0 and phase == 'valid':
-                if lowest_loss == None or owest_loss > loss[phase]/count[phase] :
+                if lowest_loss == None or lowest_loss > loss[phase]/count[phase] :
                     lowest_loss = loss[phase]/count[phase]
-                    saver.save(sess, "./out/SEMIC/inception_lowest_loss.ckpt")
-                if highest_auc == None or highest_auc < auc[phase]/count[phase] :
-                    lowest_loss = auc[phase]/count[phase]
-                    saver.save(sess, "./out/SEMIC/inception_highest_auc.ckpt")
+                    saver.save(sess, ckpt_path+"inception_lowest_loss.ckpt")
+                if highest_auc == None or highest_auc < metrics['auc'][phase] :
+                    highest_auc = metrics['auc'][phase]
+                    saver.save(sess, ckpt_path+"inception_highest_auc.ckpt")
