@@ -6,10 +6,12 @@ from multiprocessing import Pool
 from tqdm import tqdm
 
 class load_dataset:
-    def __init__(self, dataset_path='/data/SEMIC/', workers=4, shuffle=False, split_ratio=0.8, batch_size = 20):
+    def __init__(self, dataset_path='/data/SEMIC/', workers=4, shuffle=False, split_ratio=0.8, 
+                 batch_size = 20, subj_group_size=2):
         self.workers = workers
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.subj_group_size = subj_group_size
         
         labels = []
         semic_pain_path = []
@@ -44,16 +46,40 @@ class load_dataset:
         subj_list = list(self.semic_path[self.__label_names[0]])
         num_valid = len(subj_list) - int(len(subj_list) * split_ratio)
         
-        self.valid_subj_list = list(np.random.choice(subj_list, num_valid))
-        self.train_subj_list = [num for num in subj_list if num not in self.valid_subj_list]
+        self.subj_list = {}
+        self.subj_list['valid'] = list(np.random.choice(subj_list, num_valid))
+        self.subj_list['train'] = [num for num in subj_list if num not in self.subj_list['valid']]
 
         self.__semic_sampled_idx = list(np.random.choice(
-            range(len(self.semic_path[self.__label_names[1]][self.train_subj_list[0]])),
-            len(self.semic_path[self.__label_names[0]][self.train_subj_list[0]]),
+            range(len(self.semic_path[self.__label_names[1]][self.subj_list['train'][0]])),
+            len(self.semic_path[self.__label_names[0]][self.subj_list['train'][0]]),
             replace=False))
         
-        print('Train dataset Subject list : ' + ', '.join(self.train_subj_list) + '\n')
-        print('Validation dataset Subject list : ' + ', '.join(self.valid_subj_list) + '\n')
+        self.num_subj_group = {phase : 0 for phase in self.__phase_list}
+        self.__subj_batch_list = {phase : [] for phase in self.__phase_list}
+        
+        for phase in self.__phase_list:
+            
+            self.num_subj_group[phase] = int(len(self.subj_list[phase])/subj_group_size)
+
+            if len(self.subj_list[phase]) % self.subj_group_size != 0:
+                self.num_subj_group[phase] += 1
+
+            for n in range(self.num_subj_group[phase]):
+                start = n*(self.subj_group_size)
+                end = (n+1)*(self.subj_group_size)
+                start, end = map(int,[start,end])
+                if len(self.subj_list[phase]) % self.subj_group_size != 0 :
+                    if n != self.num_subj_group[phase]-1:
+                        self.__subj_batch_list[phase].append(self.subj_list[phase][start:end])
+                    else :
+                        self.__subj_batch_list[phase].append(self.subj_list[phase][start:])
+                elif len(self.subj_list[phase]) % self.subj_group_size == 0 :
+                    self.__subj_batch_list[phase].append(self.subj_list[phase][start:end])
+        
+        
+        print('Train dataset Subject list : ' + ', '.join(self.subj_list['train']) + '\n')
+        print('Validation dataset Subject list : ' + ', '.join(self.subj_list['valid']) + '\n')
 
     def read_npy(self, path):
         for label in path.split('/'):
@@ -75,14 +101,19 @@ class load_dataset:
         phase = phase.lower()
             
         try : 
-            self.current_subj
+            self.current_subj_batch
             del self.batchset
-        except : self.current_subj = {name : 0 for name in self.__phase_list}
-
-        subj_num = self.train_subj_list[self.current_subj[phase]] if phase == 'train' else self.valid_subj_list[self.current_subj[phase]]
-
+        except : 
+            self.current_subj_batch = {phase : 0 for phase in self.__phase_list}
+        
+        current_path_list = {name : [] for name in self.__label_names}
+        
+        for name in self.__label_names:
+            for num in self.__subj_batch_list[phase][self.current_subj_batch[phase]]:
+                current_path_list[name] += self.semic_path[name][num]
+        
         loaded_dataset = {
-            name : Pool(processes=self.workers).map(self.read_npy, self.semic_path[name][subj_num])
+            name : Pool(processes=self.workers).map(self.read_npy, current_path_list[name])
             for name in self.__label_names
         }
 
@@ -99,10 +130,10 @@ class load_dataset:
             loaded_dataset[name]['fmri'] = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
             loaded_dataset[name]['labels'] = np.concatenate(fmri_label, axis=0)
 
-        if self.current_subj[phase]+1 == len(self.train_subj_list if phase == 'train' else self.valid_subj_list):
-            self.current_subj[phase] = 0
+        if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
+            self.current_subj_batch[phase] = 0
         else :
-            self.current_subj[phase]+=1
+            self.current_subj_batch[phase]+=1
 
         if self.shuffle :
             indices = np.random.permutation(len(loaded_dataset[self.__label_names[-1]]['labels']))
@@ -110,7 +141,9 @@ class load_dataset:
                 loaded_dataset[name]['fmri'] = loaded_dataset[name]['fmri'][indices]
                 loaded_dataset[name]['labels'] = loaded_dataset[name]['labels'][indices]
             
-        self.num_batchs = int(len(fmri_label)/self.batch_size)+1 if len(fmri_label) % self.batch_size !=0 else int(len(fmri_label)/self.batch_size)
+        self.num_batchs = int(len(fmri_label)/self.batch_size)
+        if len(fmri_label) % self.batch_size != 0:
+            self.num_batchs+=1
 
         self.batchset = {name : [] for name in ['fmri', 'labels']}
 
