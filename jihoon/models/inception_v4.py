@@ -34,14 +34,12 @@ def Stem(data, bn=True, act=True, use_bias=False, is_train=None):
                       conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
 
         data = tf.concat((data_1, data_2),axis=-1)
-        """
         data_down_B1 = conv(data, 3, 192, ssize=2, padding="VALID", 
                             conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
         data_down_B2 = conv(data, 3, 192, ssize=2, padding="VALID", 
                             conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
-        """
-    #return tf.concat((data_down_B1, data_down_B2),axis=-1)
-    return data
+    return tf.concat((data_down_B1, data_down_B2),axis=-1)
+    #return data
     
     
 def inception_residul_block(data, block_type, idx, bn=True, act=True, use_bias=False, is_train=None):
@@ -179,11 +177,11 @@ class create:
                 self.y = tf.placeholder(tf.int32, [batch_size,], name="ground_truth")
                 self.lr = tf.placeholder(tf.float32, name="learning_rate")
                 
-                if mode=='regression':
+                if mode=='classification':
                     self.y_one_hot = tf.one_hot(self.y,depth=2,axis=-1)
                     self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
-                elif mode=='classification':
-                    self.loss = tf.losses.mean_squared_error(self.y, tf.squeeze(self.output))
+                elif mode=='regression':
+                    self.loss = tf.losses.mean_squared_error(self.y_one_hot, self.logits)
                 else : raise ValueError("Mode should be 'classification' or 'regression'.")
                 
                 self.sess.run(tf.global_variables_initializer())
@@ -234,17 +232,8 @@ class create:
                 optimizer = tf.train.AdadeltaOptimizer(learning_rate,rho=0.95,epsilon=1e-09)
             else : raise ValueError("{} optimizer doesn't exist.".format(optimizer_type))
 
-            trainable_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-
-            grads = tf.gradients(loss_op, trainable_vars)
-
-            with tf.name_scope("grad_norms"):
-                for v, grad in zip(trainable_vars, grads):
-                    if grad is not None :
-                        grad_norm_op = tf.nn.l2_loss(grad, name=format(v.name[:-2]))
-                        tf.add_to_collection("grads", grad_norm_op)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
-                train_op = optimizer.apply_gradients(zip(grads, trainable_vars), name="train_op")
+                train_op = optimizer.minimize(loss_op)
 
         return train_op

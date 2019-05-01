@@ -38,7 +38,7 @@ def load_dataset(dataset_path, batch_size= None, shuffle=False):
             fmri_label.append(img_label)
             pbar.update(1)
             
-        fmri_data = np.concatenate(fmri_data, axis=0)
+        fmri_data = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
         fmri_label = np.concatenate(fmri_label, axis=0)
         
     if shuffle :
