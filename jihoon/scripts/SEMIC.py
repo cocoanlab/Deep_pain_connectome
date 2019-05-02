@@ -39,7 +39,7 @@ arguments :
         set whether make dataset shuffle or not
         
     split_ratio : 0.8 (Default) :
-        ratio for split dataset as training and validation
+        ratio for split dataset as train and test
         
     batch_size : 20 (Default) :
         set batch size for input tensor
@@ -56,7 +56,7 @@ from multiprocessing import Pool
 from tqdm import tqdm
 
 class load_dataset:
-    def __init__(self, dataset_path='/data/SEMIC/', workers=4, shuffle=False, split_ratio=0.8, 
+    def __init__(self, dataset_path='/data/SEMIC/', workers=4, shuffle=False, split_ratio=0.1, 
                  batch_size = 20, subj_group_size=2):
         
         self.workers = workers
@@ -69,7 +69,7 @@ class load_dataset:
 
         self.__label_list = ['model02_Overall_FIR_SPM_SINGLE_TRIAL', 'model02_FIR_SPM_SINGLE_TRIAL']
         self.__label_names = ['rest', 'pain']
-        self.__phase_list = ['train', 'valid']
+        self.__phase_list = ['train', 'test']
 
         # save path seperately the following condition : labels, subject number
         self.semic_path = {name : {} for name in self.__label_names}
@@ -108,15 +108,15 @@ class load_dataset:
 
         # Split dataset with subject numbers by given split_ratio
         subj_list = list(self.semic_path[self.__label_names[0]])
-        num_valid = len(subj_list) - int(len(subj_list) * split_ratio)
+        num_test = len(subj_list) - int(len(subj_list) * split_ratio)
         
         # each subject list takes given unique subject numbers
         self.subj_list = {}
         
         # pick subject number randomly
-        self.subj_list['valid'] = list(np.random.choice(subj_list, num_valid))
-        # takes subject numbers that is not existed in validation subject number list
-        self.subj_list['train'] = [num for num in subj_list if num not in self.subj_list['valid']]
+        self.subj_list['test'] = list(np.random.choice(subj_list, num_test))
+        # takes subject numbers that is not existed in test subject number list
+        self.subj_list['train'] = [num for num in subj_list if num not in self.subj_list['test']]
 
         # get about 2200 numbers in range from 0 to max number of pain case
         # rest state and pain state are in unbalance with number of dataset
@@ -153,7 +153,7 @@ class load_dataset:
         
         # Print which phase list subjects numbers belong.
         print('Train dataset Subject list : ' + ', '.join(self.subj_list['train']) + '\n')
-        print('Validation dataset Subject list : ' + ', '.join(self.subj_list['valid']) + '\n')
+        print('Test dataset Subject list : ' + ', '.join(self.subj_list['test']) + '\n')
 
     def read_npy(self, path):
         """
@@ -183,7 +183,7 @@ class load_dataset:
         if label == 1 and file_num not in self.__semic_sampled_idx : 
             return None, None
         else : 
-            return np.load(path), label
+            return np.load(path)[np.new_axis], label
             
     def load(self, phase):
         """
