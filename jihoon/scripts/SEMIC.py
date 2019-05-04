@@ -229,12 +229,19 @@ class load_dataset:
         
         # concatenate loaded fmri data in one array of 5 Dimensions :
         # (number of brain, 79, 95, 79, 1)
+        
         for name in self.__label_names:
-            frmi_data, fmri_labels = loaded_dataset[name]
+            fmri_data = []
+            fmri_label = []
+            
+            for img, label in loaded_dataset[name]:
+                if label != None:
+                    fmri_data.append(img)
+                    fmri_label.append([label])
             
             loaded_dataset[name] = {}
             loaded_dataset[name]['fmri'] = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
-            loaded_dataset[name]['labels'] = np.concatenate(fmri_label, axis=0)
+            loaded_dataset[name]['labels'] = np.concatenate(fmri_label)
             
         # move current index to next group. if count is over of number of group, initialize it 0.
         if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
