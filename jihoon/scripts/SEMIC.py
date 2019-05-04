@@ -31,10 +31,6 @@ arguments :
         #--------------------------------------#
         Dataset should be consist of npy files only. (Recommanded)
         
-    workers : 4 (Default) :
-        set the number of workers to read npy data with multiprocessing
-        plz check number of cpu cores before set this.
-        
     shuffle : False (Default) :
         set whether make dataset shuffle or not
         
@@ -50,20 +46,17 @@ arguments :
 
 import pandas as pd
 import numpy as np
-import os
-
-from multiprocessing import Pool
-from tqdm import tqdm
+import os, gc
 
 class load_dataset:
-    def __init__(self, dataset_path='/data/SEMIC/', workers=4, shuffle=False, split_ratio=0.9, 
-                 batch_size = 20, subj_group_size=2):
+    def __init__(self, dataset_path='/data/SEMIC/', shuffle=False, split_ratio=0.9, 
+                 batch_size = 20, subj_group_size=2, nan_to_zero=False):
         
-        self.workers = workers
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.subj_group_size = subj_group_size
         self.split_ratio = split_ratio
+        self.nan_to_zero = nan_to_zero
         
         labels = []
         semic_pain_path = []
@@ -158,7 +151,7 @@ class load_dataset:
         print('Train dataset Subject list : ' + ', '.join(self.subj_list['train']) + '\n')
         print('Test dataset Subject list : ' + ', '.join(self.subj_list['test']) + '\n')
 
-    def read_npy(self, path):
+    def read_npy(self, path, nan_to_zero=False):
         """
         description :
             Load brain data
@@ -186,7 +179,9 @@ class load_dataset:
         if label == 1 and file_num not in self.__semic_sampled_idx : 
             return None, None
         else : 
-            return np.load(path)[np.newaxis], label
+            data = np.load(path)
+            data = np.nan_to_num(data)
+            return data, label
             
     def load(self, phase):
         """
@@ -221,30 +216,28 @@ class load_dataset:
         for name in self.__label_names:
             for num in self.__subj_batch_list[phase][self.current_subj_batch[phase]]:
                 current_path_list[name] += self.semic_path[name][num]
-        
+                
         # load dataset using multiprocessing to make it faster to read them
         # load them seperately by labels.
-        loaded_dataset = {
-            name : Pool(processes=self.workers).map(self.read_npy, current_path_list[name])
-            for name in self.__label_names
-        }
-        
         # concatenate loaded fmri data in one array of 5 Dimensions :
         # (number of brain, 79, 95, 79, 1)
         
-        for name in self.__label_names:
-            fmri_data = []
-            fmri_label = []
-            
-            for img, label in loaded_dataset[name]:
-                if label != None:
-                    fmri_data.append(img)
-                    fmri_label.append([label])
-            
-            loaded_dataset[name] = {}
-            loaded_dataset[name]['fmri'] = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
-            loaded_dataset[name]['labels'] = np.concatenate(fmri_label)
+        loaded_dataset = {
+            name : {data : [] for data in self.__data_type}
+            for name in self.__label_names
+        }
         
+        for name in self.__label_names:
+            for path in current_path_list[name]:
+                img, label = self.read_npy(path, self.nan_to_zero)
+                if label != None:
+                    loaded_dataset[name]['fmri'].append(img[:,:,:,np.newaxis])
+                    loaded_dataset[name]['labels'].append([label])
+
+            for data in self.__data_type:
+                loaded_dataset[name][data] = np.concatenate(loaded_dataset[name][data], axis=0)
+                
+
         # Shuffle whole dataset.
         if self.shuffle :
             indices = np.random.permutation(len(loaded_dataset[self.__label_names[-1]]['labels']))
@@ -253,8 +246,8 @@ class load_dataset:
                     loaded_dataset[name][data] = loaded_dataset[name][data][indices]
             
         # split whole dataset with given number of slices in batch.
-        self.num_batchs = int(len(fmri_label)/self.batch_size)
-        if len(fmri_label) % self.batch_size != 0:
+        self.num_batchs = int(len(loaded_dataset[name]['labels'])/self.batch_size)
+        if len(loaded_dataset[name]['labels']) % self.batch_size != 0:
             self.num_batchs+=1 
         
         self.batchset = {name : [] for name in self.__data_type}
@@ -273,7 +266,7 @@ class load_dataset:
             fmri = []
             label = []
             
-            if len(fmri_label) % self.batch_size !=0:
+            if len(loaded_dataset[name]['labels']) % self.batch_size !=0:
                 for name in self.__label_names:
                     if n != self.num_batchs-1:
                         fmri.append(loaded_dataset[name]['fmri'][start:end])
@@ -282,7 +275,7 @@ class load_dataset:
                         fmri.append(loaded_dataset[name]['fmri'][start:])
                         label.append(loaded_dataset[name]['labels'][start:])
                 
-            elif len(fmri_label) % self.batch_size ==0:
+            elif len(loaded_dataset[name]['labels']) % self.batch_size ==0:
                 for name in self.__label_names:
                     fmri.append(loaded_dataset[name]['fmri'][start:end])
                     label.append(loaded_dataset[name]['labels'][start:end])
@@ -299,7 +292,7 @@ class load_dataset:
             for _ in range(self.__num_batch_valid):
                 for data in self.__data_type:
                     self.__valid_batchset[data].append(self.batchset[data].pop())
-        
+
         # move current index to next group. if count is over of number of group, initialize it 0.
         if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
             self.current_subj_batch[phase] = 0
@@ -311,3 +304,4 @@ class load_dataset:
         
         # to free memory
         del loaded_dataset
+        gc.collect()
