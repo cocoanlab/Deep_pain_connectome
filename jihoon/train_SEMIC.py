@@ -1,21 +1,21 @@
 from scripts.SEMIC import *
-from models import inception_v4
+#from models import inception_v4
+from models import Dense_Resnet
 from sklearn import metrics
 
 import tensorflow as tf
 
 ckpt_path = "./out/SEMIC/"
-phase_list = ['train', 'valid']
+phase_list = ['train', 'valid', 'test']
 
-semic = load_dataset(workers=20, shuffle=True, batch_size = 10)
+semic = load_dataset(shuffle=True, batch_size = 20, subj_group_size=1, nan_to_zero=True)
 
-net = inception_v4.create(data_shape=(79, 95, 79, 1), num_output=2, mode='classification',optimizer_type='adadelta', phase='train')
+#net = inception_v4.create(data_shape=(79, 95, 79, 1), num_output=2, mode='classification',optimizer_type='adadelta', phase='train')
+net = Dense_Resnet.create((79, 95, 79, 1), 2, conv_mode='3d', optimizer_type='adadelta',)
 
 num_epochs = 10000
 lowest_loss=None
 highest_auc=None
-
-output_list = [net.output, net.loss]
 
 with net.sess as sess:
     with tf.device('/gpu:0'):
@@ -39,22 +39,22 @@ with net.sess as sess:
                 answer = []
                 
                 for _ in range(semic.num_subj_group[phase]):
-                    semic.load(phase)
+                    if phase != 'valid' : semic.load(phase)
                     
-                    for i in range(len(semic.batchset['labels'])):
-                        feed_dict = {net.x: semic.batchset['fmri'][i],
-                                     net.y: semic.batchset['labels'][i],
+                    for i in range(len(semic.batchset[phase]['labels'])):
+                        feed_dict = {net.x: semic.batchset[phase]['fmri'][i],
+                                     net.y: semic.batchset[phase]['labels'][i],
                                      net.keep_prob: 0.7 if phase=='train' else 1.0,
                                      net.is_train : True if phase=='train' else False}
                         
                         if phase == 'train' :
                             feed_dict.update({net.lr : 1. })
-                            pred, cost, _ = sess.run(output_list+[net.train_op], feed_dict=feed_dict)
+                            pred, cost, _ = sess.run([net.output, net.loss, net.train_op], feed_dict=feed_dict)
                         else :
-                            pred, cost = sess.run(output_list, feed_dict=feed_dict)
+                            pred, cost = sess.run([net.output, net.loss], feed_dict=feed_dict)
 
                         prediction.append(pred.argmax(-1))
-                        answer.append(semic.batchset['labels'][i])
+                        answer.append(semic.batchset[phase]['labels'][i])
                         loss[phase] += cost
                         count[phase] += 1
                         
