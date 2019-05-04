@@ -63,6 +63,7 @@ class load_dataset:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.subj_group_size = subj_group_size
+        self.split_ratio = split_ratio
         
         labels = []
         semic_pain_path = []
@@ -71,6 +72,7 @@ class load_dataset:
         self.__label_names = ['rest', 'pain']
         self.__phase_list = ['train', 'test']
         self.__data_type = ['fmri', 'labels']
+        self.__is_validset_full = False
 
         # save path seperately the following condition : labels, subject number
         self.semic_path = {name : {} for name in self.__label_names}
@@ -242,12 +244,6 @@ class load_dataset:
             loaded_dataset[name] = {}
             loaded_dataset[name]['fmri'] = np.concatenate(fmri_data, axis=0)[:,:,:,:,np.newaxis]
             loaded_dataset[name]['labels'] = np.concatenate(fmri_label)
-            
-        # move current index to next group. if count is over of number of group, initialize it 0.
-        if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
-            self.current_subj_batch[phase] = 0
-        else :
-            self.current_subj_batch[phase]+=1
         
         # Shuffle whole dataset.
         if self.shuffle :
@@ -259,9 +255,15 @@ class load_dataset:
         # split whole dataset with given number of slices in batch.
         self.num_batchs = int(len(fmri_label)/self.batch_size)
         if len(fmri_label) % self.batch_size != 0:
-            self.num_batchs+=1
+            self.num_batchs+=1 
         
-        self.batchset = {name : [np.zeros(())] for name in self.__data_type}
+        self.batchset = {name : [] for name in self.__data_type}
+        try : self.__valid_batchset
+        except : self.__valid_batchset = {name : [] for name in self.__data_type}
+        
+        # get number of batchs to use as validation case
+        try : self.__num_batch_valid
+        except : self.__num_batch_valid = int((1-self.split_ratio)*self.num_batchs)
 
         for n in range(self.num_batchs):
             start = n*(self.batch_size/2)
@@ -293,5 +295,19 @@ class load_dataset:
             for data in self.__data_type:
                 self.batchset[data][-1] = self.batchset[data][-1][indices]
 
+        if phase == 'train' and self.__is_validset_full == False:
+            for _ in range(self.__num_batch_valid):
+                for data in self.__data_type:
+                    self.__valid_batchset[data].append(self.batchset[data].pop())
+        
+        # move current index to next group. if count is over of number of group, initialize it 0.
+        if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
+            self.current_subj_batch[phase] = 0
+            self.__is_validset_full = True
+            self.valid_batch_set = self.__valid_batchset
+            del self.__valid_batchset
+        else :
+            self.current_subj_batch[phase]+=1
+        
         # to free memory
         del loaded_dataset
