@@ -250,9 +250,11 @@ class load_dataset:
         if len(loaded_dataset[name]['labels']) % self.batch_size != 0:
             self.num_batchs+=1 
         
-        self.batchset = {name : [] for name in self.__data_type}
-        try : self.__valid_batchset
-        except : self.__valid_batchset = {name : [] for name in self.__data_type}
+        self.batchset = {
+            phase : {
+                name : [] for name in self.__data_type
+            } for phase in ['train', 'test', 'valid']
+        }
         
         # get number of batchs to use as validation case
         try : self.__num_batch_valid
@@ -280,25 +282,23 @@ class load_dataset:
                     fmri.append(loaded_dataset[name]['fmri'][start:end])
                     label.append(loaded_dataset[name]['labels'][start:end])
                     
-            self.batchset['fmri'].append(np.concatenate(fmri, axis=0))
-            self.batchset['labels'].append(np.concatenate(label, axis=0))
+            self.batchset[phase]['fmri'].append(np.concatenate(fmri, axis=0))
+            self.batchset[phase]['labels'].append(np.concatenate(label, axis=0))
             
             # Shuffle batch dataset
-            indices = np.random.permutation(len(self.batchset['labels'][-1]))
+            indices = np.random.permutation(len(self.batchset[phase]['labels'][-1]))
             for data in self.__data_type:
-                self.batchset[data][-1] = self.batchset[data][-1][indices]
+                self.batchset[phase][data][-1] = self.batchset[phase][data][-1][indices]
 
         if phase == 'train' and self.__is_validset_full == False:
             for _ in range(self.__num_batch_valid):
                 for data in self.__data_type:
-                    self.__valid_batchset[data].append(self.batchset[data].pop())
+                    self.batchset['valid'][data].append(self.batchset[phase][data].pop())
 
         # move current index to next group. if count is over of number of group, initialize it 0.
         if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
             self.current_subj_batch[phase] = 0
             self.__is_validset_full = True
-            self.valid_batch_set = self.__valid_batchset
-            del self.__valid_batchset
         else :
             self.current_subj_batch[phase]+=1
         
