@@ -217,11 +217,10 @@ class load_dataset:
             for num in self.__subj_batch_list[phase][self.current_subj_batch[phase]]:
                 current_path_list[name] += self.semic_path[name][num]
                 
-        # load dataset using multiprocessing to make it faster to read them
-        # load them seperately by labels.
         # concatenate loaded fmri data in one array of 5 Dimensions :
         # (number of brain, 79, 95, 79, 1)
         
+        # load dataset seperately by labels.
         loaded_dataset = {
             name : {data : [] for data in self.__data_type}
             for name in self.__label_names
@@ -231,12 +230,12 @@ class load_dataset:
             for path in current_path_list[name]:
                 img, label = self.read_npy(path, self.nan_to_zero)
                 if label != None:
-                    loaded_dataset[name]['fmri'].append(img[:,:,:,np.newaxis])
+                    loaded_dataset[name]['fmri'].append(img[np.newaxis,:,:,:,np.newaxis])
                     loaded_dataset[name]['labels'].append([label])
 
             for data in self.__data_type:
                 loaded_dataset[name][data] = np.concatenate(loaded_dataset[name][data], axis=0)
-                
+                print(loaded_dataset[name][data].shape)
 
         # Shuffle whole dataset.
         if self.shuffle :
