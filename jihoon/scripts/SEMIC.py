@@ -122,6 +122,10 @@ class load_dataset:
             len(self.semic_path[self.__label_names[0]][self.subj_list['train'][0]]),
             replace=False))
         
+        self.__valid_sampled_idx = list(np.random.choice(
+            self.__semic_sampled_idx,
+            int(len(self.__semic_sampled_idx)*(1-self.split_ratio)), replace=False))
+            
         # groups how many subjects are in a shot of read_npy.
         # consider your computer RAM. 
         self.num_subj_group = {phase : 0 for phase in self.__phase_list}
@@ -177,11 +181,14 @@ class load_dataset:
         
         # if this path not in sampled indices list for data balance, ignore to read it
         if label == 1 and file_num not in self.__semic_sampled_idx : 
-            return None, None
+            return None, None, None
         else : 
             data = np.load(path)
             data = np.nan_to_num(data)
-            return data, label
+            if file_num in self.__valid_sampled_idx:
+                return data, label, True
+            else :
+                return data, label, False
             
     def load(self, phase):
         """
@@ -225,17 +232,31 @@ class load_dataset:
             name : {data : [] for data in self.__data_type}
             for name in self.__label_names
         }
+        try : self.__valid_dataset
+        except : 
+            if not self.__is_validset_full :
+                self.__valid_dataset = {
+                    name : {data : [] for data in self.__data_type}
+                    for name in self.__label_names
+                }
+            else : pass
         
+        current_idx = 0
         for name in self.__label_names:
             for path in current_path_list[name]:
-                img, label = self.read_npy(path, self.nan_to_zero)
-                if label != None:
-                    loaded_dataset[name]['fmri'].append(img[np.newaxis,:,:,:,np.newaxis])
-                    loaded_dataset[name]['labels'].append([label])
+                img, label, is_valid = self.read_npy(path, self.nan_to_zero)
+                if is_valid != None:
+                    img = img[np.newaxis,:,:,:,np.newaxis]
+                    if is_valid and not self.__is_validset_full :
+                        self.__valid_dataset[name]['fmri'].append(img)
+                        self.__valid_dataset[name]['labels'].append([label])
+                    else :
+                        loaded_dataset[name]['fmri'].append(img)
+                        loaded_dataset[name]['labels'].append([label])
+                    current_idx += 1
 
             for data in self.__data_type:
                 loaded_dataset[name][data] = np.concatenate(loaded_dataset[name][data], axis=0)
-                print(loaded_dataset[name][data].shape)
 
         # Shuffle whole dataset.
         if self.shuffle :
@@ -252,12 +273,8 @@ class load_dataset:
         self.batchset = {
             phase : {
                 name : [] for name in self.__data_type
-            } for phase in ['train', 'test', 'valid']
+            } for phase in self.__phase_list
         }
-        
-        # get number of batchs to use as validation case
-        try : self.__num_batch_valid
-        except : self.__num_batch_valid = int((1-self.split_ratio)*self.num_batchs)
 
         for n in range(self.num_batchs):
             start = n*(self.batch_size/2)
@@ -289,15 +306,61 @@ class load_dataset:
             for data in self.__data_type:
                 self.batchset[phase][data][-1] = self.batchset[phase][data][-1][indices]
 
-        if phase == 'train' and self.__is_validset_full == False:
-            for _ in range(self.__num_batch_valid):
-                for data in self.__data_type:
-                    self.batchset['valid'][data].append(self.batchset[phase][data].pop())
-
         # move current index to next group. if count is over of number of group, initialize it 0.
         if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
             self.current_subj_batch[phase] = 0
-            self.__is_validset_full = True
+            
+            # Validation dataset Processing
+            if not self.__is_validset_full :
+                self.batchset['valid'] = {name : [] for name in self.__data_type}
+                
+                for data in self.__data_type:
+                    self.__valid_dataset[name][data] = np.concatenate(self.__valid_dataset[name][data], axis=0)
+                    
+                # Shuffle whole dataset.
+                if self.shuffle :
+                    indices = np.random.permutation(len(self.__valid_dataset[self.__label_names[-1]]['labels']))
+                    for name in self.__label_names:
+                        for data in self.__data_type :
+                            self.__valid_dataset[name][data] = self.__valid_dataset[name][data][indices]
+                
+                self.valid_num_batchs = int(len(self.__valid_dataset[name]['labels'])/self.batch_size)
+                if len(self.__valid_dataset[name]['labels']) % self.batch_size != 0:
+                    self.valid_num_batchs+=1 
+                
+                for n in range(self.valid_num_batchs):
+                    start = n*(self.batch_size/2)
+                    end = (n+1)*(self.batch_size/2)
+                    start, end = map(int,[start,end])
+
+                    fmri = []
+                    label = []
+
+                    if len(self.__valid_dataset[name]['labels']) % self.batch_size !=0:
+                        for name in self.__label_names:
+                            if n != self.num_batchs-1:
+                                fmri.append(self.__valid_dataset[name]['fmri'][start:end])
+                                label.append(self.__valid_dataset[name]['labels'][start:end])
+                            else : 
+                                fmri.append(self.__valid_dataset[name]['fmri'][start:])
+                                label.append(self.__valid_dataset[name]['labels'][start:])
+
+                    elif len(loaded_dataset[name]['labels']) % self.batch_size ==0:
+                        for name in self.__label_names:
+                            fmri.append(self.__valid_dataset[name]['fmri'][start:end])
+                            label.append(self.__valid_dataset[name]['labels'][start:end])
+
+                    self.batchset['valid']['fmri'].append(np.concatenate(fmri, axis=0))
+                    self.batchset['valid']['labels'].append(np.concatenate(label, axis=0))
+
+                    # Shuffle batch dataset
+                    indices = np.random.permutation(len(self.batchset['valid']['labels'][-1]))
+                    for data in self.__data_type:
+                        self.batchset['valid'][data][-1] = self.batchset['valid'][data][-1][indices]
+                
+                self.__is_validset_full = True
+                del self.__valid_dataset
+            
         else :
             self.current_subj_batch[phase]+=1
         
