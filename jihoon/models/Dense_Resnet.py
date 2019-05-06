@@ -65,90 +65,90 @@ class create():
         padding_type='SAME'
         BIAS = False
         
-        conv_down1 = conv(self.x,filters=64,ksize=9,ssize=4,padding="SAME",use_bias=BIAS, conv_mode=self.conv_mode, 
+        conv_down1 = conv(self.x,filters=32,ksize=9,ssize=4,padding="SAME",use_bias=BIAS, conv_mode=self.conv_mode, 
                           conv_name="conv_down1", bn_name="bn_down1",bn=True,act=True, is_train=self.is_train)
         
         # Stage 2
-        stage2_filters = [64,64,256]
+        stage2_filters = [32,32,128]
         resblock_1 = residual_block(conv_down1,7,stage2_filters, stage=2, block="a",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         resblock_2 = residual_block(resblock_1, 7, stage2_filters, stage=2, block="b",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        resblock_3 = residual_block(resblock_2, 7, [64,64,128], stage=2, block="c",
+        resblock_3 = residual_block(resblock_2, 7, [32,32,64], stage=2, block="c",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        conv_down2 = conv(resblock_3,filters=128,ksize=7,ssize=2,padding="SAME",use_bias=BIAS, conv_mode=self.conv_mode, 
+        conv_down2 = conv(resblock_3,filters=64,ksize=7,ssize=2,padding="SAME",use_bias=BIAS, conv_mode=self.conv_mode, 
                           conv_name="conv_down2", bn_name="bn_down2",bn=True,act=True, is_train=self.is_train)
-        conv_down1_dense1 = conv(conv_down1,filters=128,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
+        conv_down1_dense1 = conv(conv_down1,filters=64,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down1_dense1", bn_name="bn_down1_dense1",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
         stage2_dense = tf.concat((conv_down2, conv_down1_dense1),
                                  axis=-1, name='stage2_dense')
         
         # Stage 3
-        stage3_filters = [128,128,512]
+        stage3_filters = [64,64,256]
         resblock_4 = residual_block(stage2_dense ,5,stage3_filters, stage=3, block="a", 
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         resblock_5 = residual_block(resblock_4, 5, stage3_filters, stage=3, block="b",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         resblock_6 = residual_block(resblock_5, 5, stage3_filters, stage=3, block="c",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        resblock_7 = residual_block(resblock_6, 5, [128,128,256], stage=3, block="d",
+        resblock_7 = residual_block(resblock_6, 5, [64,64,128], stage=3, block="d",
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        conv_down3 = conv(resblock_7,filters=256, ksize=5,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
+        conv_down3 = conv(resblock_7,filters=128, ksize=5,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
                           conv_name="conv_down3",bn_name="bn_down3",bn=True,act=True, is_train=self.is_train)
-        conv_down2_dense1 = conv(stage2_dense,filters=128,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
+        conv_down2_dense1 = conv(stage2_dense,filters=64,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down2_dense1", bn_name="bn_down2_dense1",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
-        conv_down1_dense2 = conv(conv_down1,filters=128,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
+        conv_down1_dense2 = conv(conv_down1,filters=64,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down1_dense2", bn_name="bn_down1_dense2",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
         stage3_dense = tf.concat((conv_down3, conv_down2_dense1,conv_down1_dense2),
                                  axis=-1, name='stage3_dense')
         
         # Stage 4
-        stage4_filters = [256,256,1024]
+        stage4_filters = [128,128,512]
         stage4 = residual_block(stage3_dense,3,stage4_filters, stage=4, block="a",
                                 conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         for i in range(5):
             stage4 = residual_block(stage4, 3, stage4_filters, stage=4, block=chr(ord('b')+i),
                                     conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        stage4 = residual_block(stage4, 3, [256,256,512], stage=4, block=chr(ord('b')+i+1),
+        stage4 = residual_block(stage4, 3, [128,128,256], stage=4, block=chr(ord('b')+i+1),
                                 conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
             
-        conv_down4 = conv(stage4,filters=256,ksize=2,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
+        conv_down4 = conv(stage4,filters=128,ksize=2,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
                           conv_name="conv_down4",bn_name="bn_down4",bn=True,act=True, is_train=self.is_train)
-        conv_down3_dense1 = conv(stage3_dense,filters=256,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
+        conv_down3_dense1 = conv(stage3_dense,filters=128,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down3_dense1", bn_name="bn_down3_dense1",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
-        conv_down2_dense2 = conv(stage2_dense,filters=256,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
+        conv_down2_dense2 = conv(stage2_dense,filters=128,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down2_dense2", bn_name="bn_down2_dense2",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
-        conv_down1_dense3 = conv(conv_down1,filters=256,ksize=8,ssize=8,padding="SAME",use_bias=BIAS,
+        conv_down1_dense3 = conv(conv_down1,filters=128,ksize=8,ssize=8,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down1_dense3", bn_name="bn_down1_dense3",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
         stage4_dense = tf.concat((conv_down4, conv_down3_dense1,conv_down2_dense2,conv_down1_dense3),
                                  axis=-1, name='stage4_dense')
         # Stage 5
-        stage5_filters = [512,512,2048]
+        stage5_filters = [256,256,1024]
         resblock_14 = residual_block(stage4_dense,3,stage5_filters, stage=5, block="a",
                                      conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         resblock_15 = residual_block(resblock_14, 3, stage5_filters, stage=5, block="b",
                                      conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
-        resblock_16 = residual_block(resblock_15, 3, [512,512,1024], stage=5, block="c",
+        resblock_16 = residual_block(resblock_15, 3, [256,256,512], stage=5, block="c",
                                      conv_mode=self.conv_mode, is_train=self.is_train, use_bias=BIAS)
         
-        conv_down5 = conv(resblock_16,filters=512, ksize=2,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
+        conv_down5 = conv(resblock_16,filters=256, ksize=2,ssize=2,padding="SAME",use_bias=False, conv_mode=self.conv_mode, 
                           conv_name="conv_down5",bn_name="bn_down5",bn=True,act=True, is_train=self.is_train)
-        conv_down4_dense1 = conv(stage4_dense,filters=512,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
+        conv_down4_dense1 = conv(stage4_dense,filters=256,ksize=2,ssize=2,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down4_dense1", bn_name="bn_down4_dense1",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)        
-        conv_down3_dense2 = conv(stage3_dense,filters=512,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
+        conv_down3_dense2 = conv(stage3_dense,filters=256,ksize=4,ssize=4,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down3_dense2", bn_name="bn_down3_dense2",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
-        conv_down2_dense3 = conv(stage2_dense,filters=512,ksize=8,ssize=8,padding="SAME",use_bias=BIAS,
+        conv_down2_dense3 = conv(stage2_dense,filters=256,ksize=8,ssize=8,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down2_dense3", bn_name="bn_down2_dense3",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
-        conv_down1_dense4 = conv(conv_down1,filters=512,ksize=16,ssize=16,padding="SAME",use_bias=BIAS,
+        conv_down1_dense4 = conv(conv_down1,filters=256,ksize=16,ssize=16,padding="SAME",use_bias=BIAS,
                                  conv_name="conv_down1_dense4", bn_name="bn_down1_dense4",
                                  conv_mode=self.conv_mode, bn=True,act=True, is_train=self.is_train)
         stage5_dense = tf.concat((conv_down5, conv_down4_dense1, conv_down3_dense2,
