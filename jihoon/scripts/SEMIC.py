@@ -265,9 +265,9 @@ class load_dataset:
                     loaded_dataset[name][data] = loaded_dataset[name][data][indices]
             
         # split whole dataset with given number of slices in batch.
-        self.num_batchs = int(len(loaded_dataset[name]['labels'])/self.batch_size)
+        num_batchs = int(len(loaded_dataset[name]['labels'])/self.batch_size)
         if len(loaded_dataset[name]['labels']) % self.batch_size != 0:
-            self.num_batchs+=1 
+            num_batchs+=1 
         
         self.batchset = {
             phase : {
@@ -275,35 +275,19 @@ class load_dataset:
             } for phase in self.__phase_list
         }
 
-        for n in range(self.num_batchs*2):
-            start = n*(self.batch_size/2)
-            end = (n+1)*(self.batch_size/2)
-            start, end = map(int,[start,end])
-            
-            fmri = []
-            label = []
-            
-            if len(loaded_dataset[name]['labels']) % self.batch_size !=0:
-                for name in self.__label_names:
-                    if n != self.num_batchs-1:
-                        fmri.append(loaded_dataset[name]['fmri'][start:end])
-                        label.append(loaded_dataset[name]['labels'][start:end])
-                    else : 
-                        fmri.append(loaded_dataset[name]['fmri'][start:])
-                        label.append(loaded_dataset[name]['labels'][start:])
-                
-            elif len(loaded_dataset[name]['labels']) % self.batch_size ==0:
-                for name in self.__label_names:
-                    fmri.append(loaded_dataset[name]['fmri'][start:end])
-                    label.append(loaded_dataset[name]['labels'][start:end])
-                    
-            self.batchset[phase]['fmri'].append(np.concatenate(fmri, axis=0))
-            self.batchset[phase]['labels'].append(np.concatenate(label, axis=0))
-            
-            # Shuffle batch dataset
-            indices = np.random.permutation(len(self.batchset[phase]['labels'][-1]))
+        for name in self.__label_names:
             for data in self.__data_type:
-                self.batchset[phase][data][-1] = self.batchset[phase][data][-1][indices]
+                loaded_dataset[name][data] = np.array_split(loaded_dataset[name][data], num_batchs*2, axis=0)
+                
+        shuffled_idx = []
+        for data in self.__data_type:
+            for idx, (rest, pain) in enumerate(zip(loaded_dataset['rest'][data], loaded_dataset['pain'][data])):
+                self.batchset[phase][data].append(np.concatenate([rest, pain], axis=0))
+                if data == 'fmri' : 
+                    shuffled_idx.append(np.random.permutation(len(self.batchset[phase][data][-1])))
+                    self.batchset[phase][data][-1] = self.batchset[phase][data][-1][shuffled_idx[-1]]
+                else :
+                    self.batchset[phase][data][-1] = self.batchset[phase][data][-1][shuffled_idx[idx]]
 
         # move current index to next group. if count is over of number of group, initialize it 0.
         if self.current_subj_batch[phase]+1 == self.num_subj_group[phase]:
@@ -323,39 +307,26 @@ class load_dataset:
                         for data in self.__data_type :
                             self.__valid_dataset[name][data] = self.__valid_dataset[name][data][indices]
                 
-                self.valid_num_batchs = int(len(self.__valid_dataset[name]['labels'])/self.batch_size)
+                num_batchs = int(len(self.__valid_dataset[name]['labels'])/self.batch_size)
                 if len(self.__valid_dataset[name]['labels']) % self.batch_size != 0:
-                    self.valid_num_batchs+=1 
+                    num_batchs+=1 
                 
-                for n in range(self.valid_num_batchs*2):
-                    start = n*(self.batch_size/2)
-                    end = (n+1)*(self.batch_size/2)
-                    start, end = map(int,[start,end])
-
-                    fmri = []
-                    label = []
-
-                    if len(self.__valid_dataset[name]['labels']) % self.batch_size !=0:
-                        for name in self.__label_names:
-                            if n != self.valid_num_batchs-1:
-                                fmri.append(self.__valid_dataset[name]['fmri'][start:end])
-                                label.append(self.__valid_dataset[name]['labels'][start:end])
-                            else : 
-                                fmri.append(self.__valid_dataset[name]['fmri'][start:])
-                                label.append(self.__valid_dataset[name]['labels'][start:])
-
-                    elif len(loaded_dataset[name]['labels']) % self.batch_size ==0:
-                        for name in self.__label_names:
-                            fmri.append(self.__valid_dataset[name]['fmri'][start:end])
-                            label.append(self.__valid_dataset[name]['labels'][start:end])
-
-                    self.batchset['valid']['fmri'].append(np.concatenate(fmri, axis=0))
-                    self.batchset['valid']['labels'].append(np.concatenate(label, axis=0))
-
-                    # Shuffle batch dataset
-                    indices = np.random.permutation(len(self.batchset['valid']['labels'][-1]))
+                for name in self.__label_names:
                     for data in self.__data_type:
-                        self.batchset['valid'][data][-1] = self.batchset['valid'][data][-1][indices]
+                        self.__valid_dataset[name][data] = np.array_split(self.__valid_dataset[name][data],
+                                                                          num_batchs*2, axis=0)
+
+                shuffled_idx = []
+                for data in self.__data_type:
+                    for idx, (rest, pain) in enumerate(zip(self.__valid_dataset['rest'][data],
+                                                           self.__valid_dataset['pain'][data])):
+                        
+                        self.batchset['valid'][data].append(np.concatenate([rest, pain], axis=0))
+                        if data == 'fmri' : 
+                            shuffled_idx.append(np.random.permutation(len(self.batchset['valid'][data][-1])))
+                            self.batchset['valid'][data][-1] = self.batchset['valid'][data][-1][shuffled_idx[-1]]
+                        else :
+                            self.batchset['valid'][data][-1] = self.batchset['valid'][data][-1][shuffled_idx[idx]]
                 
                 self.__is_validset_full = True
                 del self.__valid_dataset
