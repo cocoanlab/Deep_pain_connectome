@@ -241,7 +241,6 @@ class load_dataset:
                 }
             else : pass
         
-        current_idx = 0
         for name in self.__label_names:
             for path in current_path_list[name]:
                 img, label, is_valid = self.read_npy(path, self.nan_to_zero)
@@ -253,11 +252,11 @@ class load_dataset:
                     else :
                         loaded_dataset[name]['fmri'].append(img)
                         loaded_dataset[name]['labels'].append([label])
-                    current_idx += 1
 
             for data in self.__data_type:
                 loaded_dataset[name][data] = np.concatenate(loaded_dataset[name][data], axis=0)
-
+                
+                
         # Shuffle whole dataset.
         if self.shuffle :
             indices = np.random.permutation(len(loaded_dataset[self.__label_names[-1]]['labels']))
@@ -276,7 +275,7 @@ class load_dataset:
             } for phase in self.__phase_list
         }
 
-        for n in range(self.num_batchs):
+        for n in range(self.num_batchs*2):
             start = n*(self.batch_size/2)
             end = (n+1)*(self.batch_size/2)
             start, end = map(int,[start,end])
@@ -313,9 +312,9 @@ class load_dataset:
             # Validation dataset Processing
             if not self.__is_validset_full :
                 self.batchset['valid'] = {name : [] for name in self.__data_type}
-                
-                for data in self.__data_type:
-                    self.__valid_dataset[name][data] = np.concatenate(self.__valid_dataset[name][data], axis=0)
+                for name in self.__label_names:
+                    for data in self.__data_type:
+                        self.__valid_dataset[name][data] = np.concatenate(self.__valid_dataset[name][data], axis=0)
                     
                 # Shuffle whole dataset.
                 if self.shuffle :
@@ -328,7 +327,7 @@ class load_dataset:
                 if len(self.__valid_dataset[name]['labels']) % self.batch_size != 0:
                     self.valid_num_batchs+=1 
                 
-                for n in range(self.valid_num_batchs):
+                for n in range(self.valid_num_batchs*2):
                     start = n*(self.batch_size/2)
                     end = (n+1)*(self.batch_size/2)
                     start, end = map(int,[start,end])
@@ -338,7 +337,7 @@ class load_dataset:
 
                     if len(self.__valid_dataset[name]['labels']) % self.batch_size !=0:
                         for name in self.__label_names:
-                            if n != self.num_batchs-1:
+                            if n != self.valid_num_batchs-1:
                                 fmri.append(self.__valid_dataset[name]['fmri'][start:end])
                                 label.append(self.__valid_dataset[name]['labels'][start:end])
                             else : 
