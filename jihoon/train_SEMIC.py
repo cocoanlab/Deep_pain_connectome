@@ -1,14 +1,14 @@
 from scripts.SEMIC import *
 #from models import inception_v4
 from models import Dense_Resnet
-from sklearn import metrics
+from sklearn.metrics import roc_curve, confusion_matrix, auc
 
 import tensorflow as tf
 
 ckpt_path = "./out/SEMIC/"
 phase_list = ['train', 'valid', 'test']
 
-semic = load_dataset(shuffle=True, batch_size = 20, subj_group_size=1, nan_to_zero=True)
+semic = load_dataset(shuffle=True, batch_size = 100, subj_group_size=1, nan_to_zero=True)
 
 #net = inception_v4.create(data_shape=(79, 95, 79, 1), num_output=2, mode='classification',optimizer_type='adadelta', phase='train')
 net = Dense_Resnet.create((79, 95, 79, 1), 2, conv_mode='3d', optimizer_type='adadelta',)
@@ -61,9 +61,9 @@ with net.sess as sess:
                 prediction = np.concatenate(prediction, axis=0)
                 answer = np.concatenate(answer, axis=0)
                 
-                fpr, tpr, _ = metrics.roc_curve(answer, prediction, pos_label=1)
-                tn, fp, fn, tp = metrics.confusion_matrix(answer, prediction).ravel()
-                metrics['auc'][phase] = metrics.auc(fpr, tpr)
+                fpr, tpr, _ = roc_curve(answer, prediction, pos_label=1)
+                tn, fp, fn, tp = confusion_matrix(answer, prediction).ravel()
+                metrics['auc'][phase] = auc(fpr, tpr)
                 metrics['sensitivity'][phase] = tp / (tp+fn)
                 metrics['specitivity'][phase] = tn / (tn+fp)
             
