@@ -302,7 +302,7 @@ class load_dataset:
                     
                 # Shuffle whole dataset.
                 if self.shuffle :
-                    indices = np.random.permutation(len(self.__valid_dataset[self.__label_names[-1]]['labels']))
+                    indices = np.random.permutation(len(self.__valid_dataset[self.__label_names[0]]['labels']))
                     for name in self.__label_names:
                         for data in self.__data_type :
                             self.__valid_dataset[name][data] = self.__valid_dataset[name][data][indices]
