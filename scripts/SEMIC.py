@@ -295,6 +295,8 @@ class load_dataset:
             
             # Validation dataset Processing
             if not self.__is_validset_full :
+                # All subject's specific beta has been included while whole training subjects were loading.
+                self.num_subj_group['valid'] = 1
                 self.batchset['valid'] = {name : [] for name in self.__data_type}
                 for name in self.__label_names:
                     for data in self.__data_type:
