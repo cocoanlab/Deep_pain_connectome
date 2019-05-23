@@ -5,7 +5,7 @@ import random
 
 def dir_search(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
     
-    search_dir = []
+    search_list = []
     if in_condition_1:
             in_condition_1 = "|".join(in_condition_1).lower()
     if in_condition_2:
@@ -36,12 +36,14 @@ def dir_search(basedir, in_condition_1=None, in_condition_2=None, in_condition_3
             if out_search:
                 continue
 
-        search_dir.append(dirpath)
+        search_list.append(dirpath)
         
-    search_dir.sort()
-    return search_dir
+    search_list.sort()
+    search_list = np.array(search_list)
+    
+    return search_list
 
-def file_list(search_dir, choice_num):
+def beta_file_list(search_dir, choice_num):
     max_len = 0
     min_len = 0
     beta_full_path_list = []
@@ -74,14 +76,15 @@ def file_list(search_dir, choice_num):
 
         for files in file_name_list:
             beta_full_path_list.append(os.path.join(dirpath,files))
-            
+    
+    beta_full_path_list = np.array(beta_full_path_list)
     return beta_full_path_list
 
-def file_dict(full_path_list):
+def beta_file_dict(beta_full_path_list):
     file_dict = {}
     temp_list = []
-    for i in range(len(full_path_list)):
-        split_name = full_path_list[i].split('/')
+    for i in range(len(beta_full_path_list)):
+        split_name = beta_full_path_list[i].split('/')
 
         if 'subject' in split_name[-2]:
             dic_key = split_name[-2]
@@ -89,28 +92,32 @@ def file_dict(full_path_list):
         try:
             file_dict[dic_key]
         except:
-            file_dict[dic_key] = [full_path_list[i]]
+            file_dict[dic_key] = [beta_full_path_list[i]]
 
         if file_dict[dic_key]:
-            file_dict[dic_key].append(full_path_list[i])
+            file_dict[dic_key].append(beta_full_path_list[i])
     return file_dict
 
-def rating_list(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
-    search_dir = dir_search(basedir=basedir, in_condition_1=in_condition_1, 
+def rating_file_list(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
+    search_list = dir_search(basedir=basedir, in_condition_1=in_condition_1, 
                      in_condition_2 = in_condition_2, 
                      out_conidtion=out_conidtion)
 
     rating_full_path_list = []
-    for dirpath in search_dir:
+    for dirpath in search_list:
         rating_files = os.listdir(dirpath)
         rating_files.sort()
 
         for file in rating_files:
             rating_full_path_list.append(os.path.join(dirpath,file))
     
+    rating_full_path_list = np.array(rating_full_path_list)
     return rating_full_path_list
 
-def rating_index(beta_full_path_list, rating_full_path_list):
+def rating_index_dict(beta_full_path_list, rating_full_path_list):
+
+    index_dict = {}
+    index_dict['beta_full_path_list'] = beta_full_path_list
 
     index_list = []
     for dirpath in beta_full_path_list:
@@ -121,16 +128,41 @@ def rating_index(beta_full_path_list, rating_full_path_list):
                 c = c+file_name[i]
         index_list.append(int(c))
     index_list_np = np.array(index_list) - 1
-    
-    return index_list_np
 
-def load_rating(beta_full_path_list, rating_full_path_list, index_list_np):
+    index_dict['index_list_np'] = index_list_np
+
+    return index_dict
+
+def rating_value_list(rating_full_path_list, index_dict):
+    if not len(index_dict['beta_full_path_list'])%len(rating_full_path_list) == 0:
+        raise ValueError("beta_full_path_list length({}) have to be multiple of rating_full_path_list length({})".format(len(beta_full_path_list),len(rating_full_path_list)))
+    
+    if not len(index_dict['beta_full_path_list']) == len(index_dict['index_list_np']):
+        raise ValueError("beta_full_path_list length({}) have to be matched with index_list_np length({})".format(len(beta_full_path_list), len(index_list_np)))
+    
     index = 0
+    index_2 = 0
     rating_list = []
     for dirpath in rating_full_path_list:
-        rating_np = np.load(dirpath)
-        for i in range(int(len(beta_full_path_list)/len(rating_full_path_list))):
-            rating_list.append(rating_np[index_list_np[index]])
+        rating_np = np.load(dirpath)  
+        
+        for i in range(int(len(index_dict['beta_full_path_list'])/len(rating_full_path_list))):
+            check_subj = False
+            for i in range(len(index_dict['beta_full_path_list'][index].split('/'))):
+                if 'subject' in index_dict['beta_full_path_list'][index].split('/')[i]:
+                    subj_name = index_dict['beta_full_path_list'][index].split('/')[i]
+                    check_subj = True
+
+            if not check_subj:
+                raise ValueError("Cannot find subject name in index")
+
+            if not subj_name in rating_full_path_list[index_2]:
+                raise ValueError("index's subject name {} is not matched with rating_full_path_list's subject name {}".format(subj_name, rating_full_path_list[index_2]))
+
+            rating_list.append(rating_np[index_dict['index_list_np'][index]])
+            
             index += 1
-    
+        index_2 += 1
+        
+    rating_list = np.array(rating_list)
     return rating_list
