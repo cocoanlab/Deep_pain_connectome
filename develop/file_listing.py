@@ -6,6 +6,14 @@ import random
 def dir_search(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
     
     search_dir = []
+    if in_condition_1:
+            in_condition_1 = "|".join(in_condition_1).lower()
+    if in_condition_2:
+            in_condition_2 = "|".join(in_condition_2).lower()
+    if in_condition_3:
+            in_condition_3 = "|".join(in_condition_3).lower()
+    if out_conidtion:
+            out_conidtion = "|".join(out_conidtion).lower()
     
     for dirpath, dirnames, filenames in os.walk(basedir):
         if in_condition_1:
@@ -36,7 +44,7 @@ def dir_search(basedir, in_condition_1=None, in_condition_2=None, in_condition_3
 def file_list(search_dir, choice_num):
     max_len = 0
     min_len = 0
-    full_path_list = []
+    beta_full_path_list = []
     
     for dirpath in search_dir:
         if max_len < len(os.listdir(dirpath)):
@@ -48,7 +56,6 @@ def file_list(search_dir, choice_num):
     if choice_num > min_len:
         raise ValueError("choice_num {} is larger than directory files minimum length {}".format(choice_num, min_len))
 
-        
     for dirpath in search_dir:
         rand = np.random.choice(len(os.listdir(dirpath)), choice_num, replace=False) + 1
         file_name_list = []
@@ -66,9 +73,9 @@ def file_list(search_dir, choice_num):
             file_name_list.append(file_name)
 
         for files in file_name_list:
-            full_path_list.append(os.path.join(dirpath,files))
+            beta_full_path_list.append(os.path.join(dirpath,files))
             
-    return full_path_list
+    return beta_full_path_list
 
 def file_dict(full_path_list):
     file_dict = {}
@@ -87,3 +94,43 @@ def file_dict(full_path_list):
         if file_dict[dic_key]:
             file_dict[dic_key].append(full_path_list[i])
     return file_dict
+
+def rating_list(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
+    search_dir = dir_search(basedir=basedir, in_condition_1=in_condition_1, 
+                     in_condition_2 = in_condition_2, 
+                     out_conidtion=out_conidtion)
+
+    rating_full_path_list = []
+    for dirpath in search_dir:
+        rating_files = os.listdir(dirpath)
+        rating_files.sort()
+
+        for file in rating_files:
+            rating_full_path_list.append(os.path.join(dirpath,file))
+    
+    return rating_full_path_list
+
+def rating_index(beta_full_path_list, rating_full_path_list):
+
+    index_list = []
+    for dirpath in beta_full_path_list:
+        file_name = os.path.split(dirpath)[-1]
+        c = ""
+        for i in range(len(file_name)):
+            if file_name[i].isnumeric():
+                c = c+file_name[i]
+        index_list.append(int(c))
+    index_list_np = np.array(index_list) - 1
+    
+    return index_list_np
+
+def load_rating(beta_full_path_list, rating_full_path_list, index_list_np):
+    index = 0
+    rating_list = []
+    for dirpath in rating_full_path_list:
+        rating_np = np.load(dirpath)
+        for i in range(int(len(beta_full_path_list)/len(rating_full_path_list))):
+            rating_list.append(rating_np[index_list_np[index]])
+            index += 1
+    
+    return rating_list
