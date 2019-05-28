@@ -7,6 +7,7 @@ class create():
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
         self.graph = tf.get_default_graph()
         self.num_classes = num_classes
+        self.data_shape = data_shape
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -17,7 +18,7 @@ class create():
         self.sess = tf.Session(config=config, graph=self.graph)
         
         with self.graph.as_default():
-            self.x = tf.placeholder(tf.float32, shape=[None, 592895], name='input_images')
+            self.x = tf.placeholder(tf.float32, shape=[None, data_shape], name='input_images')
             self.keep_prob = tf.placeholder(tf.float32)
             self.is_train = tf.placeholder(tf.bool)
             self.__create_model() 
@@ -26,8 +27,7 @@ class create():
                 self.y = tf.placeholder(tf.int32, [batch_size,])
                 self.lr = tf.placeholder(tf.float32, name="lr")
                 
-                cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, logits=self.output)
-                self.loss = tf.reduce_mean(cross_entropy)
+                self.loss = tf.reduce_mean(tf.square(self.output - self.y))
 
                 self.sess.run(tf.global_variables_initializer())
                 self.train_op = self.__set_op(self.loss, self.lr, optimizer_type)
@@ -37,7 +37,7 @@ class create():
                 self.sess.run(tf.variables_initializer(uninit_vars))
                 
     def __create_model(self):
-        fc1 = fc(self.x, 592895, 512, bn=True, relu=True, is_train=self.is_train, name='fc1')
+        fc1 = fc(self.x, self.data_shape, 512, bn=True, relu=True, is_train=self.is_train, name='fc1')
         fc2 = fc(fc1, 512, 256, bn=True, relu=True, is_train=self.is_train, name='fc2')        
         fc3 = fc(fc2, 256, 128, bn=True, relu=True, is_train=self.is_train, name='fc3')        
         self.output = fc(fc3, 128, self.num_classes, bn=False, relu=False, name='output')
