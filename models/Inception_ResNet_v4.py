@@ -209,14 +209,12 @@ class create:
         for idx in range(5):
             fmri = inception_residul_block(fmri, 'C', idx, is_train=self.is_train)
 
-        #fmri = avg_pooling(fmri, 6, 6)
+        fmri = avg_pooling(fmri, int(fmri.shape[1]), int(fmri.shape[1]))
         
-        num_nodes=1
-        for i in range(1,len(fmri.shape)): num_nodes*=int(fmri.shape[i])
-        fmri = tf.reshape(fmri, [-1, num_nodes])
+        fmri = tf.layers.flatten(fmri)
         fmri = dropout(fmri, self.keep_prob)
-        self.output = fc(fmri, int(fmri.shape[-1]), self.num_output, bn=False, relu=False, name='estimation')
-        
+        self.output = fc(fmri, self.num_classes, bn=False, relu=False, name='classification')
+        self.logits = tf.nn.softmax(self.output, name='logits')
         
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
         with self.graph.as_default():

@@ -154,16 +154,15 @@ class create():
         stage5_dense = tf.concat((conv_down5, conv_down4_dense1, conv_down3_dense2,
                                   conv_down2_dense3, conv_down1_dense4),
                                  axis=-1, name='stage5_dense')
-        num_nodes=1
-        for i in range(1,len(stage5_dense.shape)): num_nodes*=int(stage5_dense.shape[i])
-        stage5_dense = tf.reshape(stage5_dense, [-1, num_nodes])
         
-        fc1 = fc(stage5_dense, num_nodes, 4096, bn=True, relu=True, is_train=self.is_train, name='fc1')
+        stage5_dense = tf.layers.flatten(stage5_dense)
+        
+        fc1 = fc(stage5_dense, 4096, bn=True, relu=True, is_train=self.is_train, name='fc1')
         fc1 = dropout(fc1, self.keep_prob)
-        fc2 = fc(fc1, 4096, 4096, bn=True, relu=True, is_train=self.is_train, name='fc2')
-        fc2 = dropout(fc1, self.keep_prob)
-        
-        self.output = fc(fc2, 4096, self.num_classes, bn=False, relu=False, name='output')
+        fc2 = fc(fc1, 4096, bn=True, relu=True, is_train=self.is_train, name='fc2')
+        fc2 = dropout(fc2, self.keep_prob)
+
+        self.output = fc(fc2, self.num_classes, bn=False, relu=False, name='output')
 
 
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
