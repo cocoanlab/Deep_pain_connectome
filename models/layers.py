@@ -1,28 +1,23 @@
 import tensorflow as tf
 
-def conv(data, ksize, filters, ssize, padding, use_bias, conv_name=None, bn_name=None, bn=False, act=True, is_train=None):
+def conv(data, ksize, filters, ssize, padding, use_bias, conv_mode='2d' ,conv_name=None, bn_name=None, bn=False, act=True, is_train=None):
     if bn and is_train==None:
         raise ValueError('Phase should be declared "True" for train or "False" for test when you activate batch normalization.')
     
-    output = tf.layers.conv2d(data, kernel_size=ksize, filters=filters,
-                              strides=(ssize,ssize),
-                              padding=padding.upper(),
-                              name=conv_name,use_bias=use_bias,
-                              kernel_initializer=tf.contrib.layers.xavier_initializer())
-    
-    if bn : output = batch_norm(output, is_train, bn_name)
-    if act : output = tf.nn.relu(output)
-    return output
-
-def deconv(data, ksize, filters, ssize, padding, use_bias, deconv_name=None, bn_name=None, bn=False, act=True, is_train=None):
-    if bn and is_train==None:
-        raise ValueError('Phase should be declared "True" for train or "False" for test when you activate batch normalization.')
-    
-    output = tf.layers.conv2d_transpose(data, kernel_size=ksize, filters=filters,
-                                        strides=(ssize,ssize),
-                                        padding=padding.upper(),
-                                        name=deconv_name, use_bias=use_bias,
-                                        kernel_initializer=tf.contrib.layers.xavier_initializer())
+    if conv_mode.lower() == '2d':
+        output = tf.layers.conv2d(data, kernel_size=ksize, filters=filters,
+                                  strides=(ssize,ssize),
+                                  padding=padding.upper(),
+                                  name=conv_name,use_bias=use_bias,
+                                  kernel_initializer=tf.contrib.layers.xavier_initializer())
+    elif conv_mode.lower() == '3d':
+        output = tf.layers.conv3d(data, kernel_size=ksize, filters=filters,
+                                  strides=(ssize,ssize,ssize),
+                                  padding=padding.upper(),
+                                  name=conv_name,use_bias=use_bias,
+                                  kernel_initializer=tf.contrib.layers.xavier_initializer())
+    else :
+        raise ValueError('Convoltion mode : ['+conv_mode+'] is not available. plz select "2d" or "3d".')
     
     if bn : output = batch_norm(output, is_train, bn_name)
     if act : output = tf.nn.relu(output)
