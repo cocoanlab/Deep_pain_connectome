@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tflearn.layers.conv import global_avg_pool
 
 def conv(data, ksize, filters, ssize, padding, use_bias, conv_name=None, bn_name=None, bn=False, act=True, is_train=None):
     if bn and is_train==None:
