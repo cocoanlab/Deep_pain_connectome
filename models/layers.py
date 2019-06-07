@@ -24,20 +24,24 @@ def conv(data, ksize, filters, ssize, padding, use_bias, conv_mode='2d' ,conv_na
     return output
 
 def max_pooling(data, ksize=3, ssize=2, name=None):
-    return tf.nn.max_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="SAME", name=name)
+    with tf.name_scope(name):
+        return tf.nn.max_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="SAME", name=name)
 
 def avg_pooling(data, ksize=3, ssize=2, name=None, is_global=False):
     with tf.name_scope(name):
         return tf.nn.avg_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="VALID", name=name)
     
 def dropout(data, ratio, name=None):
-    return tf.nn.dropout(data, ratio, name=name)
+    with tf.name_scope(name):
+        return tf.nn.dropout(data, ratio, name=name)
 
 def lrn(data, depth_radius, alpha, beta, name=None):
-    return tf.nn.local_response_normalization(data, depth_radius=depth_radius, alpha=alpha, beta=beta, bias=1.0, name=name)
+    with tf.name_scope(name):
+        return tf.nn.local_response_normalization(data, depth_radius=depth_radius, alpha=alpha, beta=beta, bias=1.0, name=name)
 
 def batch_norm(data, is_train, name=None):
-    return tf.layers.batch_normalization(data, training=is_train, name=name)
+    with tf.name_scope(name):
+        return tf.layers.batch_normalization(data, training=is_train, name=name)
 
 def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
     if bn and is_train==None:
@@ -49,3 +53,4 @@ def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
             output = batch_norm(output, is_train)
         if relu : 
             output = tf.nn.relu(output)
+    return output
