@@ -30,6 +30,16 @@ def max_pooling(data, ksize=3, ssize=2, name=None):
 def avg_pooling(data, ksize=3, ssize=2, name=None, is_global=False):
     with tf.name_scope(name):
         return tf.nn.avg_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="VALID", name=name)
+
+def global_avg_pooling(data, mode='2d', name=None):
+    with tf.name_scope(name):
+        if mode == '2d' : 
+            global_avg_pool = tf.keras.layers.GlobalAveragePooling2D()
+        elif mode == '3d' : 
+            global_avg_pool = tf.keras.layers.GlobalAveragePooling3D()
+        else :
+            raise ValueError("'mode' must be '2d' or '3d'.")
+        return global_avg_pool(data)
     
 def dropout(data, ratio, name=None):
     with tf.name_scope(name):
