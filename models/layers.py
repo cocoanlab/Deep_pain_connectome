@@ -27,9 +27,12 @@ def max_pooling(data, ksize=3, ssize=2, name=None):
     with tf.name_scope(name):
         return tf.nn.max_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="SAME", name=name)
 
-def avg_pooling(data, ksize=3, ssize=2, name=None, is_global=False):
+def avg_pooling(data, ksize=3, ssize=2, mode='2d', name=None):
     with tf.name_scope(name):
-        return tf.nn.avg_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="VALID", name=name)
+        if mode == '2d' : 
+            return tf.nn.avg_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="VALID", name=name)
+        elif mode == '3d' :
+            return tf.nn.avg_pool3d(data, ksize=[1,ksize,ksize,ksize,1], strides=[1,ssize, ssize,ssize,1], padding="VALID", name=name)
 
 def global_avg_pooling(data, mode='2d', name=None):
     with tf.name_scope(name):
