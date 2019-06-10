@@ -28,7 +28,7 @@ def Stem(data, bn=True, act=True, use_bias=False, is_train=None):
                       conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
         data_2 = conv(data_2, (1,7,1), 64, ssize=1, padding="SAME", 
                       conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
-        data_2 = conv(data_2, (1,1,3), 64, ssize=1, padding="SAME", 
+        data_2 = conv(data_2, (1,1,7), 64, ssize=1, padding="SAME", 
                       conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
         data_2 = conv(data_2, 3, 96, ssize=1, padding="VALID", 
                       conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
