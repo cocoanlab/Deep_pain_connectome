@@ -43,7 +43,7 @@ with net.sess as sess:
                 for _ in range(len(semic.batch_pathset[phase])):
                     semic.load(phase)
                     
-                    feed_dict = {net.x: semic.fmri,
+                    feed_dict = {net.x: semic.fmri[:,:,:,:,np.newaxis],
                                  net.y: semic.labels,
                                  net.keep_prob: 0.7 if phase=='train' else 1.0,
                                  net.is_train : True if phase=='train' else False}
@@ -55,7 +55,7 @@ with net.sess as sess:
                         pred, cost = sess.run([net.output, net.loss], feed_dict=feed_dict)
 
                     prediction.append(pred.argmax(-1))
-                    answer.append(semic.batchset[phase]['labels'][i])
+                    answer.append(semic.labels)
                     loss[phase] += cost
                     count[phase] += 1
 
@@ -69,15 +69,15 @@ with net.sess as sess:
                 metrics['specitivity'][phase] = tn / (tn+fp)
                 subject_run+=1
 
-                summ = tf.Summary()
-                for phase in phase_list:
-                    summ.value.add(tag=phase+'_loss', 
-                                   simple_value=loss[phase]/count[phase] if count[phase] !=0 else 0)
-                    for method in metrics.keys():
-                        summ.value.add(tag=phase+'_'+method, 
-                                       simple_value=metrics[method][phase] if count[phase] !=0 else 0)
+            summ = tf.Summary()
+            for phase in phase_list:
+                summ.value.add(tag=phase+'_loss', 
+                               simple_value=loss[phase]/count[phase] if count[phase] !=0 else 0)
+                for method in metrics.keys():
+                    summ.value.add(tag=phase+'_'+method, 
+                                   simple_value=metrics[method][phase] if count[phase] !=0 else 0)
 
-                summary_writer.add_summary(summ,subject_run if phase != 'valid' else epoch)
+            summary_writer.add_summary(summ,subject_run if phase != 'valid' else epoch)
             
             if epoch > 0 and phase == 'test':
                 if lowest_loss == None or lowest_loss > loss[phase]/count[phase] :
