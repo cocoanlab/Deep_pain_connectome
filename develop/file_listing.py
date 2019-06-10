@@ -100,7 +100,7 @@ def beta_file_dict(beta_full_path_list):
 
 def rating_file_list(basedir, in_condition_1=None, in_condition_2=None, in_condition_3=None, out_conidtion=None):
     search_list = dir_search(basedir=basedir, in_condition_1=in_condition_1, 
-                     in_condition_2 = in_condition_2, 
+                     in_condition_2 = in_condition_2, in_condition_3=in_condition_3,
                      out_conidtion=out_conidtion)
 
     rating_full_path_list = []
