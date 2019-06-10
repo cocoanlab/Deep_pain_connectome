@@ -151,11 +151,11 @@ def inception_reduction_block(data, block_type, bn=True, act=True, use_bias=Fals
             raise ValueError("Inception Reduction Block Type must be 'A' or 'B'.")
 
 def squeeze_excitation_layer(data, num_out, ratio, stage, idx=None):
-    layer_name = 'Squeeze_Excitation'+'-'+block_type.upper()
+    layer_name = 'Squeeze_Excitation'+'-'+stage.upper()
     layer_name += str(idx+1) if idx != None else ''
     
     with tf.variable_scope(layer_name):
-        squeeze = global_avg_pooling(data, mode, name='GAP_'+mode.upper())
+        squeeze = global_avg_pooling(data, '3d', name='GAP')
 
         excitation = fc(squeeze, num_out/ratio, bn=False, relu=True, name='fc1')
         excitation = fc(excitation, num_out, bn=False, relu=False, name='fc2')
@@ -168,7 +168,7 @@ def squeeze_excitation_layer(data, num_out, ratio, stage, idx=None):
         return scale
             
 class create:
-    def __init__(self, data_shape, num_output, mode='classification', batch_size=None, gpu_memory_fraction=None, optimizer_type='adam', phase='train'):
+    def __init__(self, data_shape, num_output, mode='classification', batch_size=None, gpu_memory_fraction=None, optimizer_type='adam', phase='train', reduction_ratio=4):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
         tf.reset_default_graph()
@@ -233,11 +233,11 @@ class create:
             fmri = inception_residul_block(fmri, 'C', idx, is_train=self.is_train)
             fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'C', idx)
 
-        fmri = avg_pooling(fmri, int(fmri.shape[1]), int(fmri.shape[1]))
+        fmri = avg_pooling(fmri, int(fmri.shape[1]), int(fmri.shape[1]), mode='3d')
         
         fmri = tf.layers.flatten(fmri)
         fmri = dropout(fmri, self.keep_prob)
-        self.output = fc(fmri, self.num_classes, bn=False, relu=False, name='classification')
+        self.output = fc(fmri, self.num_output, bn=False, relu=False, name='classification')
         self.logits = tf.nn.softmax(self.output, name='logits')
         
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
