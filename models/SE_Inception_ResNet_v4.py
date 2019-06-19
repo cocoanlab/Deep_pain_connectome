@@ -39,7 +39,6 @@ def Stem(data, bn=True, act=True, use_bias=False, is_train=None):
         data_down_B2 = conv(data, 3, 192, ssize=2, padding="VALID", 
                             conv_mode='3d', use_bias=use_bias,bn=bn,act=act, is_train=is_train)
     return tf.concat((data_down_B1, data_down_B2),axis=-1)
-    #return data
     
     
 def inception_residul_block(data, block_type, idx, bn=True, act=True, use_bias=False, is_train=None):
@@ -175,7 +174,7 @@ class create:
         self.graph = tf.Graph()
         self.num_output = num_output
         self.reduction_ratio = reduction_ratio
-        mode = mode.lower()
+        self.mode = mode.lower()
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -195,11 +194,11 @@ class create:
                 self.y = tf.placeholder(tf.int32, [batch_size,], name="ground_truth")
                 self.lr = tf.placeholder(tf.float32, name="learning_rate")
                 
-                if mode=='classification':
+                if self.mode=='classification':
                     self.y_one_hot = tf.one_hot(self.y,depth=2,axis=-1)
                     self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
-                elif mode=='regression':
-                    self.loss = tf.losses.mean_squared_error(self.y_one_hot, self.logits)
+                elif self.mode=='regression':
+                    self.loss = tf.losses.mean_squared_error(self.y, tf.squeeze(self.logits))
                 else : raise ValueError("Mode should be 'classification' or 'regression'.")
                 
                 self.sess.run(tf.global_variables_initializer())
@@ -233,11 +232,11 @@ class create:
             fmri = inception_residul_block(fmri, 'C', idx, is_train=self.is_train)
             fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'C', idx)
 
-        fmri = avg_pooling(fmri, int(fmri.shape[1]), int(fmri.shape[1]), mode='3d')
+        fmri = global_avg_pooling(fmri, '3d', name='GAP')
         
         fmri = tf.layers.flatten(fmri)
         fmri = dropout(fmri, self.keep_prob)
-        self.output = fc(fmri, self.num_output, bn=False, relu=False, name='classification')
+        self.output = fc(fmri, self.num_output, bn=False, relu=False, name=self.mode)
         self.logits = tf.nn.softmax(self.output, name='logits')
         
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
