@@ -2,18 +2,14 @@ import sys ; sys.path.append('../')
 import tensorflow as tf
 
 from scripts.DPC import *
-#from models import SE_Inception_ResNet_v4
-#from models import Dense_Resnet
 from models import SE_Dense_Resnet
 from sklearn.metrics import r2_score
 
 ckpt_path = "./out/DPC/"
 phase_list = ['train', 'valid', 'test']
 
-semic = dpc = load_dataset(shuffle=True, batch_size=100)
-
-#net = SE_Inception_ResNet_v4.create(data_shape=(79, 95, 68, 1), num_output=1, mode='regression',optimizer_type='adadelta', phase='train', reduction_ratio=4)
-net = SE_Dense_Resnet.create((79, 95, 68, 1), 1, conv_mode='3d', optimizer_type='adadelta',reduction_ratio=4, mode='regression')
+dpc = load_dataset(shuffle=True, batch_size=100)
+net = SE_Dense_Resnet.create((79, 95, 68, 1), 1, conv_mode='3d', optimizer_type='adam',reduction_ratio=4, mode='regression')
 
 num_epochs = 10000
 lowest_loss=None
@@ -44,12 +40,12 @@ with net.sess as sess:
                                  net.is_train : True if phase=='train' else False}
 
                     if phase == 'train' :
-                        feed_dict.update({net.lr : 1e-3 })
+                        feed_dict.update({net.lr : 1e-2 })
                         pred, cost, _ = sess.run([net.output, net.loss, net.train_op], feed_dict=feed_dict)
                     else :
                         pred, cost = sess.run([net.output, net.loss], feed_dict=feed_dict)
 
-                    prediction.append(pred.argmax(-1))
+                    prediction.append(pred)
                     answer.append(dpc.batchset[phase]['rating'][idx])
                     loss[phase] += cost
                     count[phase] += 1
