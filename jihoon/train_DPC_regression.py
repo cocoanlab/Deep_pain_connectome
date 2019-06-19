@@ -8,7 +8,7 @@ from sklearn.metrics import r2_score
 ckpt_path = "./out/DPC/"
 phase_list = ['train', 'valid', 'test']
 
-dpc = load_dataset(shuffle=True, batch_size=100)
+dpc = load_dataset(shuffle=True, batch_size=100, mode='regression')
 net = SE_Dense_Resnet.create((79, 95, 68, 1), 1, conv_mode='3d', optimizer_type='adam',reduction_ratio=4, mode='regression')
 
 num_epochs = 10000
