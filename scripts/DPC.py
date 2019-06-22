@@ -1,16 +1,22 @@
 import numpy as np
 import pandas as pd
 import warnings ; warnings.filterwarnings('ignore')
-import os,gc
+import os,gc, pickle
 
 from copy import deepcopy
 from tqdm import tqdm
 
 class load_dataset:
-    def __init__(self, dataset_path='/data/Deep_Pain_Connectome/', shuffle=False, split_ratio=0.8, batch_size = 20):
+    def __init__(self, dataset_path='/data/Deep_Pain_Connectome/', shuffle=False, 
+                 split_ratio=0.8, batch_size = 20, mode='classification', save_division_info=False):
+        
+        mode = mode.lower()
+        if mode not in ['classification', 'regression']:
+            raise ValueError("Mode should be 'classification' or 'regression'.")
+            
         self.__phase_list = ['train', 'valid', 'test']
         self.__study_list = ['bmrk3','bmrk4','nsf','ie','exp','ilcp']
-        self.__data_type = ['fmri', 'rating']
+        self.__data_type = ['fmri', 'label' if mode == 'classification' else 'rating']
         
         fmri_path = {study:{} for study in self.__study_list}
         beta_ratings = deepcopy(fmri_path)
@@ -58,7 +64,11 @@ class load_dataset:
 
             for subj_num in phase_division[study]['test']:
                 path_list['test'].append(path)
-
+        
+        if save_division_info:
+            with open('DPC_subject_phase_division.pkl', 'wb') as fout:
+                pickle.dump(path_list, fout)
+        
         for phase in self.__phase_list:
             indices = np.random.permutation(len(path_list[phase]))
             path_list[phase] = np.array(path_list[phase])[indices]
@@ -78,7 +88,7 @@ class load_dataset:
                 pbar.set_description('[ {} ] load dataset '.format(phase.upper()))
                 for batch_pathset in path_list[phase]:
                     fmri_batch= []
-                    rating_batch = []
+                    gt_batch = []
                     for path in batch_pathset:
                         study = path.split('/')[-3].split('_')[-1]
                         subj_num = path.split('/')[-2]
@@ -87,10 +97,14 @@ class load_dataset:
                         beta_num = ''.join([l for l in beta_num if ord(l) >= 48 and ord(l) <= 57])
 
                         fmri_batch.append(np.load(path)[np.newaxis])
-                        rating_batch.append(beta_ratings[study][subj_num][beta_num])
+                        if mode == 'classification':
+                            gt_batch.append(self.__study_list.index(study))
+                        else :
+                            gt_batch.append(beta_ratings[study][subj_num][beta_num])
 
                     fmri_batch = np.concatenate(fmri_batch, axis=0)[:,:,:,:,np.newaxis]
-                    rating_batch = np.array(rating_batch)
+                    gt_batch = np.array(gt_batch)
                     self.batchset[phase]['fmri'].append(fmri_batch)
-                    self.batchset[phase]['rating'].append(rating_batch)
+                    self.batchset[phase][self.__data_type[-1]].append(gt_batch)
                     pbar.update(1)
+                    
