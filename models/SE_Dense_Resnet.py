@@ -72,7 +72,7 @@ class create():
                 self.lr = tf.placeholder(tf.float32, name="lr")
                 
                 if self.mode=='classification':
-                    self.y_one_hot = tf.one_hot(self.y,depth=2,axis=-1)
+                    self.y_one_hot = tf.one_hot(self.y,depth=self.num_classes,axis=-1)
                     self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
                 elif self.mode=='regression':
                     self.loss = tf.losses.mean_squared_error(self.y, tf.squeeze(self.logits))
