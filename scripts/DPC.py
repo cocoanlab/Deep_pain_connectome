@@ -39,10 +39,11 @@ class load_dataset:
             with open(dataset_path, 'rb') as f:
                 info = pickle.load(f)
                 
+            path_list = info['path_list']
+                
             self.batch_size = info['attr']['batch_size']
             self.split_ratio = info['attr']['split_ratio']
             self.task = info['attr']['task']
-            self.path_list = info['path_list']
             self.beta_ratings = info['beta_ratings']
             self.split_mode = info['attr']['split_mode']
             self.split_ratio = info['attr']['split_ratio']
