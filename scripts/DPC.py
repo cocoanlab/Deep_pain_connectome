@@ -25,16 +25,6 @@ class load_dataset:
         self.save_batchset = save_batchset
         self.filename = filename
         
-        if split_mode not in ['random', 'kfold']:
-            raise ValueError("split_mode should be given as None or 'Kfold:K-fold classification'.")
-        
-        if task not in ['classification', 'regression']:
-            raise ValueError("Task should be 'classification' or 'regression'.")
-            
-        self.__phase_list = ['train', 'valid', 'test']
-        self.__study_list = ['bmrk3','bmrk4','nsf','ie','exp','ilcp']
-        self.__data_type = ['fmri', 'label' if task == 'classification' else 'rating']
-        
         if restore :
             with open(dataset_path, 'rb') as f:
                 info = pickle.load(f)
@@ -43,7 +33,6 @@ class load_dataset:
                 
             self.batch_size = info['attr']['batch_size']
             self.split_ratio = info['attr']['split_ratio']
-            self.task = info['attr']['task']
             self.beta_ratings = info['beta_ratings']
             self.split_mode = info['attr']['split_mode']
             self.split_ratio = info['attr']['split_ratio']
@@ -51,8 +40,21 @@ class load_dataset:
             self.test_K = info['attr']['test_K']
             if 'batchset' in info.keys():
                 self.batchset = info['batchset']
+            self.task = info['attr']['task']
+            
+        if split_mode not in ['random', 'kfold']:
+            raise ValueError("split_mode should be given as None or 'Kfold:K-fold classification'.")
+            
+        self.__phase_list = ['train', 'valid', 'test']
+        self.__study_list = ['bmrk3','bmrk4','nsf','ie','exp','ilcp']
+        if self.task != 'both' :
+            self.__data_type = ['fmri', 'label' if task == 'classification' else 'rating']
+        elif self.task == 'both':
+            self.__data_type = ['fmri', 'label', 'rating']
+        else :
+            raise ValueError("Task should be 'classification', 'regression' or 'both'.")
                 
-        else : 
+        if not restore : 
             fmri_path = {study:{} for study in self.__study_list}
             beta_ratings = deepcopy(fmri_path)
             for dirpath, _, filenames in os.walk(dataset_path):
@@ -186,7 +188,11 @@ class load_dataset:
                 pbar.set_description('[ {} ] load dataset '.format(phase.upper()))
                 for batch_pathset in path_list[phase]:
                     fmri_batch= []
-                    gt_batch = []
+                    if self.task == 'both':
+                        gt_batch = {task : [] for task in self.__data_type[1:]}
+                    else :
+                        gt_batch = []
+                        
                     for path in batch_pathset:
                         study = path.split('/')[-3].split('_')[-1]
                         subj_num = path.split('/')[-2]
@@ -197,13 +203,21 @@ class load_dataset:
                         fmri_batch.append(np.load(path)[np.newaxis])
                         if self.task == 'classification':
                             gt_batch.append(self.__study_list.index(study))
-                        else :
+                        elif self.task == 'regression':
                             gt_batch.append(self.beta_ratings[study][subj_num][beta_num])
+                        elif self.task == 'both': 
+                            gt_batch['label'].append(self.__study_list.index(study))
+                            gt_batch['rating'].append(self.beta_ratings[study][subj_num][beta_num])
 
                     fmri_batch = np.concatenate(fmri_batch, axis=0)[:,:,:,:,np.newaxis]
-                    gt_batch = np.array(gt_batch)
                     self.batchset[phase]['fmri'].append(fmri_batch)
-                    self.batchset[phase][self.__data_type[-1]].append(gt_batch)
+                    
+                    if self.task != 'both':
+                        gt_batch = np.array(gt_batch)
+                        self.batchset[phase][self.__data_type[-1]].append(gt_batch)
+                    elif self.task == 'both':
+                        for task in self.__data_type[1:]:
+                            self.batchset[phase][task].append(np.array(gt_batch[task]))
                     pbar.update(1)
                     
         if self.save_batchset:
