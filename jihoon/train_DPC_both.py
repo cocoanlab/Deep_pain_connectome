@@ -71,7 +71,7 @@ for K in range(5):
                         answer_cls.append(dpc.batchset[phase]['label'][idx])
                         
                         prediction_reg.append(pred_reg)
-                        answer.append(dpc.batchset[phase]['rating'][idx])
+                        answer_reg.append(dpc.batchset[phase]['rating'][idx])
                         
                         loss_cls[phase] += cost_cls
                         loss_reg[phase] += cost_reg
@@ -81,8 +81,8 @@ for K in range(5):
                     prediction_cls = np.concatenate(prediction_cls, axis=0)
                     prediction_reg = np.concatenate(prediction_reg, axis=0)
                     
-                    answer_cls = np.concatenate(answer, axis=0)
-                    answer_reg = np.concatenate(answer, axis=0)
+                    answer_cls = np.concatenate(answer_cls, axis=0)
+                    answer_reg = np.concatenate(answer_reg, axis=0)
                     
                     acc[phase] = accuracy_score(answer_cls, prediction_cls)
                     rsq[phase] = r2_score(answer_reg, prediction_reg)
