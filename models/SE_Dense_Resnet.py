@@ -43,15 +43,15 @@ def squeeze_excitation_layer(data, num_out, ratio, stage, idx=None, mode='2d'):
         return scale
     
 class create():
-    def __init__(self, data_shape, num_classes, reduction_ratio, conv_mode='2d', batch_size=None, 
-                 gpu_memory_fraction=None, optimizer_type='adam', phase='train', mode='classification'):
+    def __init__(self, data_shape, num_outputs, reduction_ratio, conv_mode='2d', batch_size=None, 
+                 gpu_memory_fraction=None, optimizer_type='adam', phase='train', task='classification'):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
         self.graph = tf.get_default_graph()
-        self.num_classes = num_classes
         self.conv_mode = conv_mode
         self.reduction_ratio = reduction_ratio
-        self.mode = mode
+        self.task = task.lower()
+        self.num_outputs = num_outputs
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -68,18 +68,29 @@ class create():
             self.__create_model() 
             
             if phase=='train':
-                self.y = tf.placeholder(tf.int32, [batch_size,])
                 self.lr = tf.placeholder(tf.float32, name="lr")
                 
-                if self.mode=='classification':
-                    self.y_one_hot = tf.one_hot(self.y,depth=self.num_classes,axis=-1)
+                if self.task == 'classification':
+                    self.y = tf.placeholder(tf.int32, [batch_size,])
+                    self.y_one_hot = tf.one_hot(self.y,depth=self.num_outputs ,axis=-1)
                     self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
-                elif self.mode=='regression':
+                elif self.task == 'regression':
+                    self.y = tf.placeholder(tf.float32, [batch_size,])
                     self.loss = tf.losses.mean_squared_error(self.y, tf.squeeze(self.logits))
-                else : raise ValueError("Mode should be 'classification' or 'regression'.")
+                elif self.task == 'both' :
+                    self.y_cls = tf.placeholder(tf.int32, [batch_size,])
+                    self.y_reg = tf.placeholder(tf.float32, [batch_size,])
+
+                    self.y_one_hot = tf.one_hot(self.y_cls, depth=6, axis=-1)
+                    self.loss_cls = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits_cls)
+                    self.loss_reg = tf.losses.mean_squared_error(self.y_reg, tf.squeeze(self.output_reg))
+                    self.total_loss = tf.add(self.loss_cls, self.loss_reg)
+                    
+                else : 
+                    raise ValueError("Task should be 'classification', 'regression' or 'both'.")
 
                 self.sess.run(tf.global_variables_initializer())
-                self.train_op = self.__set_op(self.loss, self.lr, optimizer_type)
+                self.train_op = self.__set_op(self.total_loss, self.lr, optimizer_type)
 
                 uninit_vars = [v for v in tf.global_variables()
                               if not tf.is_variable_initialized(v).eval(session=self.sess)]
@@ -226,14 +237,20 @@ class create():
         stage5_dense = squeeze_excitation_layer(stage5_dense, int(stage5_dense.shape[-1]),
                                                 self.reduction_ratio, '5', mode=self.conv_mode)
         
+        self.stage5_dense = stage5_dense
         stage5_dense = tf.layers.flatten(stage5_dense)
         
         fc1 = fc(stage5_dense, 4096, bn=True, relu=True, is_train=self.is_train, name='fc1')
         fc2 = fc(fc1, 4096, bn=True, relu=True, is_train=self.is_train, name='fc2')
         fc3 = fc(fc2, 4096, bn=True, relu=True, is_train=self.is_train, name='fc3')
-
-        self.output = fc(fc3, self.num_classes, bn=False, relu=False, name=self.mode)
-        self.logits = tf.nn.softmax(self.output, name='logits')
+        
+        if self.task != 'both':
+            self.output = fc(fc3, self.outputs, bn=False, relu=False, name=self.mode)
+            self.logits = tf.nn.softmax(self.output, name='logits')
+        else :
+            self.output_cls = fc(fc3, 6, bn=False, relu=False, name='classification')
+            self.output_reg = fc(fc3, 1, bn=False, relu=False, name='regression')
+            self.logits_cls = tf.nn.softmax(self.output_cls, name='logits')
 
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
         with self.graph.as_default():
