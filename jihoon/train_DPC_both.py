@@ -20,7 +20,7 @@ for K in range(5):
     net = SE_Dense_Resnet.create((79, 95, 68, 1), 6, conv_mode='3d', 
                                  optimizer_type='adadelta',reduction_ratio=4, task='both')
 
-    num_epochs = 100
+    num_epochs = 51
     lowest_total_loss=None
     lowest_cls_loss=None
     lowest_reg_loss=None
@@ -40,6 +40,7 @@ for K in range(5):
 
                 loss_cls = {phase : 0 for phase in phase_list}
                 loss_reg = {phase : 0 for phase in phase_list}
+                loss_total = {phase : 0 for phase in phase_list}
                 count = {phase : 0 for phase in phase_list}
                 acc = {phase : 0 for phase in phase_list}
                 rsq = {phase : 0 for phase in phase_list}
@@ -59,12 +60,12 @@ for K in range(5):
 
                         if phase == 'train' :
                             feed_dict.update({net.lr : 1e-2 })
-                            pred_cls, pred_reg, cost_cls, cost_reg, _ = sess.run(
-                                [net.output_cls, net.output_reg, net.loss_cls, net.loss_reg, net.train_op],
+                            pred_cls, pred_reg, cost_cls, cost_reg, cost_total, _ = sess.run(
+                                [net.output_cls, net.output_reg, net.loss_cls, net.loss_reg, net.total_loss, net.train_op],
                                 feed_dict=feed_dict)
                         else :
-                            pred_cls, pred_reg, cost_cls, cost_reg = sess.run(
-                                [net.output_cls, net.output_reg, net.loss_cls, net.loss_reg],
+                            pred_cls, pred_reg, cost_cls, cost_reg, cost_total = sess.run(
+                                [net.output_cls, net.output_reg, net.loss_cls, net.loss_reg, net.total_loss],
                                 feed_dict=feed_dict)
 
                         prediction_cls.append(pred_cls.argmax(-1))
@@ -75,6 +76,7 @@ for K in range(5):
                         
                         loss_cls[phase] += cost_cls
                         loss_reg[phase] += cost_reg
+                        loss_total[phase] += cost_total
                         
                         count[phase] += 1
 
@@ -91,7 +93,7 @@ for K in range(5):
                 summ = tf.Summary()
                 for phase in phase_list:
                     
-                    total_loss = (loss_cls[phase] + loss_reg[phase])/(count[phase]*2)
+                    total_loss = loss_total[phase]/count[phase]
                     cls_loss = loss_cls[phase]/count[phase]
                     reg_loss = loss_reg[phase]/count[phase]
                     

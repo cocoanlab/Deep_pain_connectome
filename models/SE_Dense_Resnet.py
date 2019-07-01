@@ -83,8 +83,11 @@ class create():
 
                     self.y_one_hot = tf.one_hot(self.y_cls, depth=6, axis=-1)
                     self.loss_cls = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits_cls)
-                    self.loss_reg = tf.losses.mean_squared_error(self.y_reg, tf.squeeze(self.output_reg))
-                    self.total_loss = tf.add(self.loss_cls, self.loss_reg)
+                    self.loss_reg = tf.losses.mean_squared_error(self.y_reg, tf.squeeze(self.logits_reg))
+                    
+                    self.total_loss = tf.multiply(self.loss_cls, self.loss_reg)
+                    self.total_loss = tf.add(self.total_loss, self.loss_cls)
+                    self.total_loss = tf.add(self.total_loss, self.loss_reg)
                     
                 else : 
                     raise ValueError("Task should be 'classification', 'regression' or 'both'.")
@@ -251,6 +254,7 @@ class create():
             self.output_cls = fc(fc3, 6, bn=False, relu=False, name='classification')
             self.output_reg = fc(fc3, 1, bn=False, relu=False, name='regression')
             self.logits_cls = tf.nn.softmax(self.output_cls, name='logits')
+            self.logits_reg = tf.nn.softmax(self.output_reg, name='logits')
 
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
         with self.graph.as_default():
