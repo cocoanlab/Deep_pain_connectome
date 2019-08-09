@@ -167,7 +167,8 @@ def squeeze_excitation_layer(data, num_out, ratio, stage, idx=None):
         return scale
             
 class create:
-    def __init__(self, data_shape, num_output, mode='classification', batch_size=None, gpu_memory_fraction=None, optimizer_type='adam', phase='train', reduction_ratio=4):
+    def __init__(self, data_shape, num_output, mode='classification', batch_size=None, gpu_memory_fraction=None, 
+                 optimizer_type='adam', phase='train', enable_SE=False, reduction_ratio=4):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
         tf.reset_default_graph()
@@ -175,6 +176,7 @@ class create:
         self.num_output = num_output
         self.reduction_ratio = reduction_ratio
         self.mode = mode.lower()
+        self.enable_SE = enable_SE
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -196,7 +198,10 @@ class create:
                 
                 if self.mode=='classification':
                     self.y_one_hot = tf.one_hot(self.y,depth=2,axis=-1)
-                    self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
+                    #self.loss = tf.losses.softmax_cross_entropy(self.y_one_hot, self.logits)
+                    cost = tf.reduce_mean(tf.nn.softmax_cross_entorphy_with_logits_v2(labels=self.y_one_hot, logits=self.logits))
+                    l2_loss = tf.add_n([tf.nn.l2_loss(var) for var in tf.trainable_variables()])
+                    self.loss = cost + l2_loss * weight_decay
                 elif self.mode=='regression':
                     self.loss = tf.losses.mean_squared_error(self.y, tf.squeeze(self.logits))
                 else : raise ValueError("Mode should be 'classification' or 'regression'.")
@@ -212,25 +217,25 @@ class create:
     def __create_model(self):
 
         fmri = Stem(self.x, is_train=self.is_train)
-        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Stem')
+        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Stem') if self.enable else fmri
         
         for idx in range(5):
             fmri = inception_residul_block(fmri, 'A', idx, is_train=self.is_train)
-            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'A', idx)
+            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'A', idx) if self.enable else fmri
             
         fmri = inception_reduction_block(fmri, 'A', is_train=self.is_train) 
-        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Reduction_A')
+        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Reduction_A') if self.enable else fmri
         
         for idx in range(10):
             fmri = inception_residul_block(fmri, 'B', idx, is_train=self.is_train)
-            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'B', idx)
+            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'B', idx) if self.enable else fmri
         
         fmri = inception_reduction_block(fmri, 'B', is_train=self.is_train) 
-        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Reduction_B')
+        fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'Reduction_B') if self.enable else fmri
         
         for idx in range(5):
             fmri = inception_residul_block(fmri, 'C', idx, is_train=self.is_train)
-            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'C', idx)
+            fmri = squeeze_excitation_layer(fmri, int(fmri.shape[-1]), self.reduction_ratio, 'C', idx) if self.enable else fmri
 
         fmri = global_avg_pooling(fmri, '3d', name='GAP')
         
