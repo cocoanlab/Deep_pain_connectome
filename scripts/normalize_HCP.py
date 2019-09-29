@@ -58,7 +58,6 @@ def normalize(raw_path, mask_path, mode='spatial'):
         
         
     normalized = unmask(normalized, masker_img)
-    normalized = nib.Nifti1Image(normalized, raw.affine, raw.header)
     nib.save(normalized, output_path)
     
 def __update(result):
