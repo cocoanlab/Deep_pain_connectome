@@ -1,4 +1,4 @@
-import os
+import os, gc
 import numpy as np
 import nibabel as nib
 
@@ -45,6 +45,7 @@ def normalize(raw_path, mask_path, mode='spatial'):
         non_zero_voxel_means = np.array(non_zero_voxel_means)
         non_zero_voxel_std = np.array(non_zero_voxel_std)
         normalized = np.array([(v - non_zero_voxel_means)/non_zero_voxel_std for v in non_zero_voxels])
+        del non_zero_voxel_means, non_zero_voxel_std, ebs
         
     elif mode == 'subjectwise':
         orig_shape = non_zero_voxels.shape
@@ -56,9 +57,15 @@ def normalize(raw_path, mask_path, mode='spatial'):
     else :
         raise ValueError("normalization method should be among the followings : 'spatial', 'temporal', 'subjectwise'.")
         
-        
     normalized = unmask(normalized, masker_img)
     nib.save(normalized, output_path)
+    
+    if raw.in_memory : raw.uncache()
+    if mask.in_memory : mask.uncache()
+    if normalized.in_memory : normalized.uncache()
+    if masker_img.in_memory : masker_img.uncache()
+    del raw, mask, non_zero_voxels, normalized, masker, masker_img
+    gc.collect()
     
 def __update(result):
     pbar.update(1)
