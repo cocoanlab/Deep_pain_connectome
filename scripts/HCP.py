@@ -9,8 +9,14 @@ from multiprocessing import Pool
 from tqdm import tqdm
 
 class HCP:
-    def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None, workers=4):
+    def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None,
+                 shuffle=False, workers=4, split_mode = 'random', split_ratio=0.8, num_total_K=5, test_K = '1'):
+        
+        if split_mode not in ['random', 'kfold']:
+            raise ValueError("split_mode should be given as None or 'Kfold:K-fold classification'.")
+        
         self.task_list = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
+        self.phase_list = ['train', 'valid']
         
         self.batch_size = batch_size
         self.load_size = load_size
@@ -18,6 +24,7 @@ class HCP:
         self.workers = workers
         
         self.hcp_path = []
+        self.split_size = {}
 
         for dirlist, _, filelist in os.walk(dataset_path):
             data_count = 0
@@ -35,7 +42,12 @@ class HCP:
         else : 
             raise ValueError('Gray matter mask is required to extract it')
         
-        self.__split_size = int(len(self.hcp_path)/self.load_size)+1
+        threshold = round(len(self.hcp_path)*0.8)
+        self.train_path = self.hcp_path[:threshold]
+        self.split_size['train'] = int(len(self.train_path)/self.load_size)+1
+        self.valid_path = self.hcp_path[threshold:]
+        self.split_size['valid'] = int(len(self.valid_path)/self.load_size)+1
+        
         self.current_idx = 0
         
     def load_data(self, path):
@@ -52,8 +64,20 @@ class HCP:
         else :
             return raw, task
     
-    def load_batchset(self):
-        path_list = np.array_split(self.hcp_path, self.__split_size)[self.current_idx]
+    def load_batchset(self, phase):
+        try :
+            del self.batchset
+        except :
+            pass
+        
+        if phase == 'train':
+            self.__split_size = self.split_size[phase]
+            path_list = np.array_split(self.train_path, self.__split_size)[self.current_idx]
+        elif phase == 'valid':
+            self.__split_size = self.split_size[phase]
+            path_list = np.array_split(self.valid_path, self.__split_size)[self.current_idx]
+        else :
+            raise ValueError('sss')
 
         multiprocessor = Pool(processes=self.workers)
         pbar = tqdm(path_list)
@@ -73,14 +97,15 @@ class HCP:
         multiprocessor.join()
         pbar.close()
 
-        batch_len = round(len(fmri)/self.load_size)
-        task = np.concatenate(labels)
         self.batchset = {}
-        self.batchset['fmri'] = np.array_split(fmri, batch_len)
-        self.batchset['task'] = np.array_split(task, batch_len)
-        
+        self.batchset['fmri'] = np.concatenate(fmri, axis=0)
+        self.batchset['task'] = np.concatenate(labels, axis=0)
         fmri.clear()
         labels.clear()
+        
+        batch_len = round(len(self.batchset['task'])/self.batch_size)
+        self.batchset['fmri'] = np.array_split(self.batchset['fmri'], batch_len)
+        self.batchset['task'] = np.array_split(self.batchset['task'], batch_len)
         
         if bool(int(self.current_idx/self.__split_size)):
             self.is_last = True
