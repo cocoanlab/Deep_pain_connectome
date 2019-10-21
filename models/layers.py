@@ -52,9 +52,14 @@ def lrn(data, depth_radius, alpha, beta, name=None):
     with tf.name_scope(name):
         return tf.nn.local_response_normalization(data, depth_radius=depth_radius, alpha=alpha, beta=beta, bias=1.0, name=name)
 
-def batch_norm(data, is_train, name=None):
+def batch_norm(data, is_train, name=None, data_format='channels_last', 
+               USE_FUSED_BN = True, BN_EPSILON = 0.001, BN_MOMENTUM = 0.99):
+    
+    bn_axis = -1 if data_format == 'channels_last' else 1
+    
     with tf.name_scope(name):
-        return tf.layers.batch_normalization(data, training=is_train, name=name)
+        return tf.layers.batch_normalization(data, training=is_train, name=name, momentum=BN_MOMENTUM, axis=bn_axis,
+                                             epsilon=BN_EPSILON, reuse=None, fused=USE_FUSED_BN)
 
 def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
     if bn and is_train==None:
