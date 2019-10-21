@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tflearn.layers.conv import global_avg_pool
 
 def conv(data, ksize, filters, ssize, padding, use_bias, conv_mode='2d' ,conv_name=None, bn_name=None, bn=False, act=True, is_train=None):
     if bn and is_train==None:
@@ -72,3 +73,7 @@ def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
         if relu : 
             output = tf.nn.relu(output)
     return output
+
+def global_avg_pooling(data, name=None):
+    with tf.name_scope(name):
+        return global_avg_pool(data)
