@@ -39,6 +39,8 @@ class HCP:
             masker = NiftiMasker(mask_strategy='epi')
             fitted_masker = masker.fit(mask_path)
             self.__masker_img = fitted_masker.mask_img_
+        elif not gray_matter_only:
+            pass
         else : 
             raise ValueError('Gray matter mask is required to extract it')
         
@@ -56,23 +58,25 @@ class HCP:
         task = self.task_list.index(task)
         task = [task for _ in range(raw.get_shape()[-1])]
         if self.gray_matter_only :
-            gray = apply_mask(raw, self.__masker_img)
-            if raw.in_memory : raw.uncache()
-            del raw
-            gc.collect()
-            return gray, task
+            data = apply_mask(raw, self.__masker_img)
         else :
-            return raw, task
+            data = raw.get_data()
+            data = data.transpose(3,0,1,2)
+            
+        if raw.in_memory : raw.uncache()
+        del raw
+        gc.collect()
+        return data, task
     
     def load_batchset(self, phase):
-        try :
+        if self.current_idx > 0:
+            self.batchset.clear()
             del self.batchset
-        except :
-            pass
+            gc.collect()
         
         if phase == 'train':
             self.__split_size = self.split_size[phase]
-            path_list = np.array_split(self.train_path, self.__split_size)[self.current_idx]
+            path_list = np.array_split(self.train_path, self.__split_size,)[self.current_idx]
         elif phase == 'valid':
             self.__split_size = self.split_size[phase]
             path_list = np.array_split(self.valid_path, self.__split_size)[self.current_idx]
@@ -112,6 +116,7 @@ class HCP:
             self.current_idx = 0
         else :
             self.is_last = False
+            self.current_idx+=1
             
-        del fmri, labels, 
+        del fmri, labels
         gc.collect()
