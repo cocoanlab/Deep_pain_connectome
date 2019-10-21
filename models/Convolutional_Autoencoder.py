@@ -40,7 +40,6 @@ class create():
     def __create_model(self):
         data = conv(self.x, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        print(data.shape)
         data = max_pooling(data, ksize=3, ssize=2, mode='3d')
             
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
