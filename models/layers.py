@@ -24,9 +24,14 @@ def conv(data, ksize, filters, ssize, padding, use_bias, conv_mode='2d' ,conv_na
     if act : output = tf.nn.relu(output)
     return output
 
-def max_pooling(data, ksize=3, ssize=2, name=None):
+def max_pooling(data, ksize=3, ssize=2, mode='2d', name=None):
     with tf.name_scope(name):
-        return tf.nn.max_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="SAME", name=name)
+        if mode == '2d':
+            return tf.nn.max_pool(data, ksize=[1,ksize,ksize,1], strides=[1,ssize,ssize,1], padding="SAME", name=name)
+        elif mode == '3d':
+            return tf.nn.max_pool3d(data, ksize=[1,ksize,ksize,ksize,1], strides=[1,ssize,ssize,ssize,1], padding="SAME", name=name)
+        else :
+            raise ValueError('Max Pooling mode : ['+conv_mode+'] is not available. plz select "2d" or "3d".')
 
 def avg_pooling(data, ksize=3, ssize=2, mode='2d', name=None):
     with tf.name_scope(name):
