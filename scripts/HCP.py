@@ -102,8 +102,8 @@ class HCP:
         pbar.close()
 
         self.batchset = {}
-        self.batchset['fmri'] = np.concatenate(fmri, axis=0)
-        self.batchset['task'] = np.concatenate(labels, axis=0)
+        self.batchset['fmri'] = np.concatenate(fmri, axis=0)[:,:,:,:,np.newaxis]
+        self.batchset['task'] = np.concatenate(labels, axis=0)[:,:,:,:,np.newaxis]
         fmri.clear()
         labels.clear()
         
