@@ -45,17 +45,14 @@ class create():
             
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        print(data.shape)
         data = max_pooling(data, ksize=3, ssize=2, mode='3d')
         
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        print(data.shape)
         data = max_pooling(data, ksize=3, ssize=2, mode='3d')
         
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        print(data.shape)
         data = max_pooling(data, ksize=3, ssize=2, mode='3d')
         
         orig_shape = tuple(map(int,data.get_shape()[1:]))
