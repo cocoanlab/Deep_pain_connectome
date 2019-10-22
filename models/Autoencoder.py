@@ -37,7 +37,7 @@ class create():
                 self.sess.run(tf.variables_initializer(uninit_vars))
                 
     def __create_model(self):
-        filters = list( map((lambda x : 2**x), reversed( range(6,10)) ))
+        filters = list( map((lambda x : 2**x), reversed( range(7,10)) ))
         
         for idx, filt_num in enumerate(filters):
             name = 'encode{}'.format(idx+1)

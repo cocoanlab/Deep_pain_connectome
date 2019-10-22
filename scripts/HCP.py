@@ -102,10 +102,12 @@ class HCP:
         pbar.close()
 
         self.batchset = {}
-        self.batchset['fmri'] = np.concatenate(fmri, axis=0)[:,:,:,:,np.newaxis]
-        self.batchset['task'] = np.concatenate(labels, axis=0)[:,:,:,:,np.newaxis]
+        self.batchset['fmri'] = np.concatenate(fmri, axis=0)
+        self.batchset['task'] = np.concatenate(labels, axis=0)
         fmri.clear()
         labels.clear()
+        if not self.gray_matter_only :
+            self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
         
         batch_len = round(len(self.batchset['task'])/self.batch_size)
         self.batchset['fmri'] = np.array_split(self.batchset['fmri'], batch_len)
