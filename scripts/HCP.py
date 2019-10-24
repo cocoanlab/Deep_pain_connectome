@@ -7,13 +7,11 @@ from nilearn.input_data import NiftiMasker
 from nilearn.masking import apply_mask, unmask
 from multiprocessing import Pool
 from tqdm import tqdm
+from sklearn.model_selection import ShuffleSplit
 
 class HCP:
     def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None,
-                 shuffle=False, workers=4, split_mode = 'random', split_ratio=0.8, num_total_K=5, test_K = '1'):
-        
-        if split_mode not in ['random', 'kfold']:
-            raise ValueError("split_mode should be given as None or 'Kfold:K-fold classification'.")
+                 shuffle=False, workers=4, num_total_K=5, test_K = 1):
         
         self.task_list = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
         self.phase_list = ['train', 'valid']
@@ -44,13 +42,36 @@ class HCP:
         else : 
             raise ValueError('Gray matter mask is required to extract it')
         
-        threshold = round(len(self.hcp_path)*0.8)
-        self.train_path = self.hcp_path[:threshold]
-        self.split_size['train'] = int(len(self.train_path)/self.load_size)+1
-        self.valid_path = self.hcp_path[threshold:]
-        self.split_size['valid'] = int(len(self.valid_path)/self.load_size)+1
+        Kfold_idx = ShuffleSplit(n_splits=num_total_K, test_size=1/num_total_K).split(self.hcp_path)
+        Kfold_idx = [kfold for kfold in Kfold_idx]
         
-        self.current_idx = 0
+        self.path_batchset = {}
+        self.path_len = {}
+        self.batchset = {}
+        self.current_idx = {phase : 0 for phase in self.phase_list}
+        
+        self.path_batchset['train'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][0]]
+        self.path_batchset['valid'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][1]]
+        
+        for phase in self.phase_list:
+            path_length = len(self.path_batchset[phase])
+            if path_length % load_size != 0 :
+                load_len = int(path_length/load_size)+1
+            else :
+                load_len = int(path_length/batch_size)
+            
+            split_load = []
+            
+            for n in range(load_len):
+                if path_length % load_size !=0:
+                    start = n*load_size
+                    end = (n+1)*load_size
+                    split_load.append(self.path_batchset[phase][start:end] if n != load_len-1 else self.path_batchset[phase][start:])
+                elif load_len % load_size ==0:
+                    start = n*load_size
+                    end = (n+1)*load_size
+                    split_load.append(self.path_batchset[phase][start:end])
+            self.path_batchset[phase] = split_load
         
     def load_data(self, path):
         raw = nib.load(path)
@@ -69,19 +90,9 @@ class HCP:
         return data, task
     
     def load_batchset(self, phase):
-        if self.current_idx > 0:
-            self.batchset.clear()
-            del self.batchset
-            gc.collect()
-        
-        if phase == 'train':
-            self.__split_size = self.split_size[phase]
-            path_list = np.array_split(self.train_path, self.__split_size,)[self.current_idx]
-        elif phase == 'valid':
-            self.__split_size = self.split_size[phase]
-            path_list = np.array_split(self.valid_path, self.__split_size)[self.current_idx]
-        else :
-            raise ValueError('sss')
+        self.batchset.clear()
+        idx = self.current_idx[phase]
+        path_list = self.path_batchset[phase][idx]
 
         multiprocessor = Pool(processes=self.workers)
         pbar = tqdm(path_list)
@@ -109,16 +120,37 @@ class HCP:
         if not self.gray_matter_only :
             self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
         
-        batch_len = round(len(self.batchset['task'])/self.batch_size)
-        self.batchset['fmri'] = np.array_split(self.batchset['fmri'], batch_len)
-        self.batchset['task'] = np.array_split(self.batchset['task'], batch_len)
+        if self.batch_size == None : pass
+        else :
+            data_len = len(self.batchset['fmri'])
+            self.num_batchs = int(data_len/self.batch_size)+1 if data_len % self.batch_size !=0 else int(data_len/self.batch_size)
+            
+            fmri_batchset = []
+            task_batchset = []
+            
+            for n in range(self.num_batchs):
+                if data_len % self.batch_size !=0:
+                    start = n*self.batch_size
+                    end = (n+1)*self.batch_size
+                    
+                    fmri_batchset.append(self.batchset['fmri'][start:end] if n != self.num_batchs-1 else self.batchset['fmri'][start:])
+                    task_batchset.append(self.batchset['task'][start:end] if n != self.num_batchs-1 else self.batchset['task'][start:])
+                elif data_len % self.batch_size ==0:
+                    start = n*self.batch_size
+                    end = (n+1)*self.batch_size
+                    
+                    fmri_batchset.append(self.batchset['fmri'][start:end])
+                    task_batchset.append(self.batchset['task'][start:end])
+
+            self.batchset.clear()
+            self.batchset = {'fmri':fmri_batchset, 'task':task_batchset}
         
-        if bool(int(self.current_idx/self.__split_size)):
+        if idx == len(self.path_batchset[phase]):
             self.is_last = True
-            self.current_idx = 0
+            self.current_idx[phase] = 0
         else :
             self.is_last = False
-            self.current_idx+=1
+            self.current_idx[phase] += 1
             
         del fmri, labels
         gc.collect()
