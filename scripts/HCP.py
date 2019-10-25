@@ -11,7 +11,10 @@ from sklearn.model_selection import ShuffleSplit
 
 class HCP:
     def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None,
-                 shuffle=False, workers=4, num_total_K=5, test_K = 1):
+                 shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None):
+        
+        if gray_matter_only and split_2d_at is not None:
+            raise ValueError('You cannot split gray matter data(1D) as 2D data.')
         
         self.task_list = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
         self.phase_list = ['train', 'valid']
@@ -20,6 +23,8 @@ class HCP:
         self.load_size = load_size
         self.gray_matter_only = gray_matter_only
         self.workers = workers
+        self.shuffle = shuffle
+        self.split_2d_at = split_2d_at
         
         self.hcp_path = []
         self.split_size = {}
@@ -82,8 +87,31 @@ class HCP:
             data = apply_mask(raw, self.__masker_img)
         else :
             data = raw.get_data()
-            data = data.transpose(3,0,1,2)
+            if self.split_2d_at is None :
+                data = data.transpose(3,0,1,2)
+            elif self.split_2d_at == 'sagittal' :  
+                data = data.transpose(3,0,1,2)
+                _,_,a,b = data.shape
+                data = data.reshape(-1,a,b)
+            elif self.split_2d_at == 'coronal' :  
+                data = data.transpose(3,1,0,2)
+                _,_,a,b = data.shape
+                data = data.reshape(-1,a,b)
+            elif self.split_2d_at == 'axial' :  
+                data = data.transpose(3,2,0,1)
+                _,_,a,b = data.shape
+                data = data.reshape(-1,a,b)
+            else :
+                raise ValueError('Brain data plains must be one of among "sagittal", "coronal", and "axial".')
             
+        task = path.split('/')[-1].split('_')[1]
+        task = self.task_list.index(task)
+        task = [task for _ in range(data.shape[0])]
+        if self.shuffle :
+            indices=np.random.permutation(len(data))
+            data = data[indices]
+            task = [task[i] for i in indices]
+        
         if raw.in_memory : raw.uncache()
         del raw
         gc.collect()
@@ -118,7 +146,10 @@ class HCP:
         fmri.clear()
         labels.clear()
         if not self.gray_matter_only :
-            self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
+            if self.split_2d_at is None :
+                self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
+            else :
+                self.batchset['fmri'] = self.batchset['fmri'][:,:,:,np.newaxis]
         
         if self.batch_size == None : pass
         else :
