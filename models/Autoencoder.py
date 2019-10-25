@@ -3,13 +3,14 @@ import tensorflow as tf
 
 class create():
     def __init__(self, data_shape, latent_size, batch_size=None, gpu_memory_fraction=None, 
-                 optimizer_type='adam', phase='train', disable_decoder=False):
+                 optimizer_type='adam', phase='train', disable_decoder=False, enable_skip_connection=False):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
         self.graph = tf.get_default_graph()
         self.latent_size = latent_size
         self.data_shape = data_shape
         self.disable_decoder = disable_decoder
+        self.enable_sc = enable_skip_connection
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -38,10 +39,13 @@ class create():
                 
     def __create_model(self):
         filters = list( map((lambda x : 2**x), reversed( range(7,10)) ))
+        encoding_layers = []
         
         for idx, filt_num in enumerate(filters):
             name = 'encode{}'.format(idx+1)
             data = fc(self.x if idx==0 else data, filt_num, bn=True, relu=True, is_train=self.is_train, name=name)
+            if self.enable_sc:
+                encoding_layers.append(data)
         
         self.latent = fc(data, self.latent_size, bn=True, relu=True, is_train=self.is_train, name='latent')
         
@@ -51,6 +55,8 @@ class create():
             for idx, filt_num in enumerate(filters):
                 name = 'decode{}'.format(len(filters)-idx)
                 data = fc(self.latent if idx==0 else data, filt_num, bn=True, relu=True, is_train=self.is_train, name=name)
+                if self.enable_sc:
+                     data = tf.add(data, encoding_layers.pop())
                 
             self.output = fc(data, self.data_shape, bn=True, relu=True, is_train=self.is_train, name='output')
         
