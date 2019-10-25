@@ -145,7 +145,7 @@ class HCP:
             self.batchset.clear()
             self.batchset = {'fmri':fmri_batchset, 'task':task_batchset}
         
-        if idx == len(self.path_batchset[phase]):
+        if idx == len(self.path_batchset[phase])-1:
             self.is_last = True
             self.current_idx[phase] = 0
         else :
