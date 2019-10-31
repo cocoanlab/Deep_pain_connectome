@@ -60,8 +60,8 @@ class HCP:
         
         for phase in self.phase_list : 
             data_length = len(self.path_batchset[phase])
-            rest = int(data_length % self.batch_size)
-            num_batchs = int(data_length/self.batch_size)
+            rest = int(data_length % self.load_size)
+            num_batchs = int(data_length/self.load_size)
             
             if rest == 0:
                 self.path_batchset[phase] = np.array_split(self.path_batchset[phase], num_batchs)
@@ -145,28 +145,21 @@ class HCP:
         
         if self.batch_size == None : pass
         else :
-            data_len = len(self.batchset['fmri'])
-            self.num_batchs = int(data_len/self.batch_size)+1 if data_len % self.batch_size !=0 else int(data_len/self.batch_size)
+            data_length = len(self.batchset['fmri'])
+            rest = int(data_length % self.batch_size)
+            num_batchs = int(data_length/self.batch_size)
             
-            fmri_batchset = []
-            task_batchset = []
-            
-            for n in range(self.num_batchs):
-                if data_len % self.batch_size !=0:
-                    start = n*self.batch_size
-                    end = (n+1)*self.batch_size
-                    
-                    fmri_batchset.append(self.batchset['fmri'][start:end] if n != self.num_batchs-1 else self.batchset['fmri'][start:])
-                    task_batchset.append(self.batchset['task'][start:end] if n != self.num_batchs-1 else self.batchset['task'][start:])
-                elif data_len % self.batch_size ==0:
-                    start = n*self.batch_size
-                    end = (n+1)*self.batch_size
-                    
-                    fmri_batchset.append(self.batchset['fmri'][start:end])
-                    task_batchset.append(self.batchset['task'][start:end])
-
-            self.batchset.clear()
-            self.batchset = {'fmri':fmri_batchset, 'task':task_batchset}
+            if rest == 0:
+                self.batchset['fmri'] = np.array_split(self.batchset['fmri'], num_batchs)
+                self.batchset['task'] = np.array_split(self.batchset['task'], num_batchs)
+            elif rest != 0:
+                rest_fmri_batch = self.batchset['fmri'][-rest:]
+                self.batchset['fmri'] = np.array_split(self.batchset['fmri'][:-rest], num_batchs)
+                self.batchset['fmri'].append(rest_fmri_batch)
+                
+                rest_task_batch = self.batchset['task'][-rest:]
+                self.batchset['task'] = np.array_split(self.batchset['task'][:-rest], num_batchs)
+                self.batchset['task'].append(rest_task_batch)
         
         if idx == len(self.path_batchset[phase])-1:
             self.is_last = True
