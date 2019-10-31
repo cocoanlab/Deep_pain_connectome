@@ -58,26 +58,18 @@ class HCP:
         self.path_batchset['train'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][0]]
         self.path_batchset['valid'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][1]]
         
-        for phase in self.phase_list:
-            path_length = len(self.path_batchset[phase])
-            if path_length % load_size != 0 :
-                load_len = int(path_length/load_size)+1
-            else :
-                load_len = int(path_length/batch_size)
+        for phase in self.phase_list : 
+            data_length = len(self.path_batchset[phase])
+            rest = int(data_length % self.batch_size)
+            num_batchs = int(data_length/self.batch_size)
             
-            split_load = []
+            if rest == 0:
+                self.path_batchset[phase] = np.array_split(self.path_batchset[phase], num_batchs)
+            elif rest != 0:
+                rest_batch = self.path_batchset[phase][-rest:]
+                self.path_batchset[phase] = np.array_split(self.path_batchset[phase][:-rest], num_batchs)
+                self.path_batchset[phase].append(rest_batch)
             
-            for n in range(load_len):
-                if path_length % load_size !=0:
-                    start = n*load_size
-                    end = (n+1)*load_size
-                    split_load.append(self.path_batchset[phase][start:end] if n != load_len-1 else self.path_batchset[phase][start:])
-                elif load_len % load_size ==0:
-                    start = n*load_size
-                    end = (n+1)*load_size
-                    split_load.append(self.path_batchset[phase][start:end])
-            self.path_batchset[phase] = split_load
-        
     def load_data(self, path):
         raw = nib.load(path)
         task = path.split('/')[-1].split('_')[1]
