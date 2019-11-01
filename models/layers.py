@@ -100,3 +100,60 @@ def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
         if relu : 
             output = tf.nn.relu(output)
     return output
+
+def global_map_average_pooling(data, mode='2d', name=None):
+    with tf.variable_scope(name):
+        if mode == '2d' :
+            _, x, y, _ = data.get_shape().as_list()
+            flatten_len = x*y 
+        if mode == '3d' :
+            _, x, y, z, _ = data.get_shape().as_list()
+            flatten_len = x*y*z
+
+        data = tf.reshape(data, (-1, flatten_len, c))
+        data = [tf.reduce_mean(data[:,idx,:], axis=-1) for idx in range(flatten_len)]
+        data = [tf.expand_dims(fmap, axis=-1) for fmap in data]
+        data = tf.concat(data, axis=-1)
+        
+        dimension = (-1,x,y,1) if mode == '2d' else (-1,x,y,z,1)
+        data = tf.reshape(data, dimension)
+
+        return data
+
+def squeeze_excitation_layer(data, ratio, mode='2d', name=None):
+    with tf.variable_scope(name):
+        c = data.get_shape().as_list()[-1]
+        squeeze = global_avg_pooling(data)
+
+        excitation = fc(squeeze, c/ratio, bn=False, relu=True, name='fc1')
+        excitation = fc(excitation, c, bn=False, relu=False, name='fc2')
+        excitation = tf.nn.sigmoid(excitation)
+
+        dimension = (-1,x,y,1) if mode == '2d' else (-1,x,y,z,1)
+        excitation = tf.reshape(excitation, dimension)
+
+        scale = data * excitation
+
+        return scale
+    
+def positional_squeeze_excitation_layer(data, ratio, mode='2d', name=None):
+    with tf.variable_scope(name):
+        if mode == '2d' :
+            _, x, y, _ = data.get_shape().as_list()
+        if mode == '3d' :
+            _, x, y, z, _ = data.get_shape().as_list()
+            
+        squeeze = global_map_average_pooling(data)
+        flatten_len = x*y if mode == '2d' else x*y*z
+        squeeze = tf.reshape(squeeze, (-1, flatten_len))
+        
+        excitation = fc(squeeze, flatten_len/ratio, bn=False, relu=True, name='fc1')
+        excitation = fc(excitation, flatten_len, bn=False, relu=False, name='fc2')
+        excitation = tf.nn.sigmoid(excitation)
+        
+        dimension = (-1,x,y,1) if mode == '2d' else (-1,x,y,z,1)
+        excitation = tf.reshape(excitation, dimension)
+        
+        scale = data * excitation
+        
+        return scale
