@@ -2,16 +2,17 @@ from models.layers import *
 import tensorflow as tf
 
 class create():
-    def __init__(self, data_shape, latent_size, batch_size=None, gpu_memory_fraction=None, 
+    def __init__(self, data_shape, latent_size, batch_size=None, gpu_memory_fraction=None, enable_sc=False,
                  optimizer_type='adam', phase='train', plain='total', disable_decoder=False):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
-        if plain not in ['total', 'axial', 'saggital'] : raise  ValueError("phase must be 'total', 'axial', 'saggital'.")
+        if plain not in ['total', 'axial', 'sagittal'] : raise  ValueError("phase must be 'total', 'axial', 'saggital'.")
         self.graph = tf.get_default_graph()
         self.latent_size = latent_size
         self.data_shape = data_shape
         self.disable_decoder = disable_decoder
         self.plain = plain
+        self.enable_sc = enable_sc
         self.__dimension = '3d' if plain == 'total' else '2d'
         self.__cropping = {
             'total' : [
@@ -20,8 +21,8 @@ class create():
                 ((1, 0), (1, 0), (0, 1)),
             ],
             'sagittal' : [
-                ((0, 0), (1, 0)),
-                ((1, 0), (0, 0)), 
+                ((1, 0), (0, 0)),
+                ((0, 0), (1, 0)), 
                 ((1, 0), (1, 0)),
             ],
             'axial' : [
@@ -58,20 +59,26 @@ class create():
                 self.sess.run(tf.variables_initializer(uninit_vars))
                 
     def __create_model(self):
+        encoding_layers = []
+        
         data = conv(self.x, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
             
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
         orig_shape = tuple(map(int,data.get_shape()[1:]))
@@ -83,6 +90,8 @@ class create():
             data = tf.reshape(data, (-1,)+orig_shape)
             
             data = deconv(data, 3, 256, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            if self.enable_sc:
+                data = tf.add(data, encoding_layers.pop())
             data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
             data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
@@ -91,6 +100,8 @@ class create():
                 data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][0])(data)
             elif self.__dimension == '3d':
                 data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][0])(data)
+            if self.enable_sc:
+                data = tf.add(data, encoding_layers.pop())
             data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
             data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
@@ -99,6 +110,8 @@ class create():
                 data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][1])(data)
             elif self.__dimension == '3d':
                 data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][1])(data)
+            if self.enable_sc:
+                data = tf.add(data, encoding_layers.pop())
             data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
             data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
@@ -107,6 +120,8 @@ class create():
                 data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][2])(data)
             elif self.__dimension == '3d':
                 data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][2])(data)
+            if self.enable_sc:
+                data = tf.add(data, encoding_layers.pop())
             data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
             data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
             self.output = conv(data, 3, 1, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=False,act=False, is_train=self.is_train)
