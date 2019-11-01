@@ -3,13 +3,33 @@ import tensorflow as tf
 
 class create():
     def __init__(self, data_shape, latent_size, batch_size=None, gpu_memory_fraction=None, 
-                 optimizer_type='adam', phase='train', disable_decoder=False):
+                 optimizer_type='adam', phase='train', plain='total', disable_decoder=False):
         
         if phase not in ['train', 'inference'] : raise  ValueError("phase must be 'train' or 'inference'.")
+        if plain not in ['total', 'axial', 'saggital'] : raise  ValueError("phase must be 'total', 'axial', 'saggital'.")
         self.graph = tf.get_default_graph()
         self.latent_size = latent_size
         self.data_shape = data_shape
         self.disable_decoder = disable_decoder
+        self.plain = plain
+        self.__dimension = '3d' if plain == 'total' else '2d'
+        self.__cropping = {
+            'total' : [
+                ((1, 0), (0, 0), (0, 1)),
+                ((0, 0), (1, 0), (0, 0)),
+                ((1, 0), (1, 0), (0, 1)),
+            ],
+            'sagittal' : [
+                ((0, 0), (1, 0)),
+                ((1, 0), (0, 0)), 
+                ((1, 0), (1, 0)),
+            ],
+            'axial' : [
+                ((1, 0), (0, 0)),
+                ((0, 0), (1, 0)), 
+                ((1, 0), (1, 0)),
+            ]
+        }
         
         config = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
         if gpu_memory_fraction is None:
@@ -38,21 +58,21 @@ class create():
                 self.sess.run(tf.variables_initializer(uninit_vars))
                 
     def __create_model(self):
-        data = conv(self.x, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = max_pooling(data, ksize=3, ssize=2, mode='3d')
+        data = conv(self.x, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
             
-        data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = max_pooling(data, ksize=3, ssize=2, mode='3d')
+        data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
-        data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = max_pooling(data, ksize=3, ssize=2, mode='3d')
+        data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
-        data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-        data = max_pooling(data, ksize=3, ssize=2, mode='3d')
+        data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+        data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
         
         orig_shape = tuple(map(int,data.get_shape()[1:]))
         data = tf.layers.flatten(data)
@@ -62,25 +82,34 @@ class create():
             data = fc(self.latent, data.get_shape()[-1], bn=True, relu=True, is_train=self.is_train, name='fc_reconstruction')
             data = tf.reshape(data, (-1,)+orig_shape)
             
-            data = deconv(data, 3, 256, ssize=2, padding="SAME", deconv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = deconv(data, 3, 256, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
-            data = deconv(data, 3, 128, ssize=2, padding="SAME", deconv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = tf.keras.layers.Cropping3D(cropping=((1, 0), (0, 0), (0, 1)))(data)
-            data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = deconv(data, 3, 128, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            if self.__dimension == '2d' :
+                data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][0])(data)
+            elif self.__dimension == '3d':
+                data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][0])(data)
+            data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
-            data = deconv(data, 3, 64, ssize=2, padding="SAME", deconv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = tf.keras.layers.Cropping3D(cropping=((0, 0), (1, 0), (0, 0)))(data)
-            data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = deconv(data, 3, 64, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            if self.__dimension == '2d' :
+                data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][1])(data)
+            elif self.__dimension == '3d':
+                data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][1])(data)
+            data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
 
-            data = deconv(data, 3, 32, ssize=2, padding="SAME", deconv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = tf.keras.layers.Cropping3D(cropping=((1, 0), (1, 0), (0, 1)))(data)
-            data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
-            self.output = conv(data, 3, 1, ssize=1, padding="SAME", conv_mode='3d', use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = deconv(data, 3, 32, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            if self.__dimension == '2d' :
+                data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][2])(data)
+            elif self.__dimension == '3d':
+                data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][2])(data)
+            data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            self.output = conv(data, 3, 1, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=False,act=False, is_train=self.is_train)
         
     def __set_op(self, loss_op, learning_rate, optimizer_type="adam"):
         with self.graph.as_default():
