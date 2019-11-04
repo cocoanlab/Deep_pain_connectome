@@ -11,7 +11,7 @@ from sklearn.model_selection import ShuffleSplit
 
 class HCP:
     def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None,
-                 shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None):
+                 shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None, SEED=201703):
         
         if gray_matter_only and split_2d_at is not None:
             raise ValueError('You cannot split gray matter data(1D) as 2D data.')
@@ -47,8 +47,9 @@ class HCP:
         else : 
             raise ValueError('Gray matter mask is required to extract it')
         
-        Kfold_idx = ShuffleSplit(n_splits=num_total_K, test_size=1/num_total_K).split(self.hcp_path)
+        Kfold_idx = ShuffleSplit(n_splits=num_total_K, test_size=1/num_total_K, random_state=SEED).split(self.hcp_path)
         Kfold_idx = [kfold for kfold in Kfold_idx]
+        self.Kfold_idx = Kfold_idx
         
         self.path_batchset = {}
         self.path_len = {}
