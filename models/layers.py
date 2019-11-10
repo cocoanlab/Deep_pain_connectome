@@ -123,13 +123,13 @@ def global_map_average_pooling(data, mode='2d', name=None):
 def squeeze_excitation_layer(data, ratio, mode='2d', name=None):
     with tf.variable_scope(name):
         c = data.get_shape().as_list()[-1]
-        squeeze = global_avg_pooling(data)
+        squeeze = global_avg_pooling(data, mode)
 
         excitation = fc(squeeze, c/ratio, bn=False, relu=True, name='fc1')
         excitation = fc(excitation, c, bn=False, relu=False, name='fc2')
         excitation = tf.nn.sigmoid(excitation)
 
-        dimension = (-1,x,y,1) if mode == '2d' else (-1,x,y,z,1)
+        dimension = (-1,1,1,c) if mode == '2d' else (-1,1,1,1,c)
         excitation = tf.reshape(excitation, dimension)
 
         scale = data * excitation
@@ -143,7 +143,7 @@ def positional_squeeze_excitation_layer(data, ratio, mode='2d', name=None):
         if mode == '3d' :
             _, x, y, z, _ = data.get_shape().as_list()
             
-        squeeze = global_map_average_pooling(data)
+        squeeze = global_map_average_pooling(data, mode)
         flatten_len = x*y if mode == '2d' else x*y*z
         squeeze = tf.reshape(squeeze, (-1, flatten_len))
         
