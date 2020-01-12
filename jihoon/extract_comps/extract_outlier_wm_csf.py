@@ -19,11 +19,11 @@ hcp_orig_dataset_root = '/media/das/Human_Connectome_Project/'
 hcp_data = []
 
 for dirpath, _, filenames in os.walk(hcp_orig_dataset_root):
-    for fname in filenames:
-        comp_dir = os.path.join(dirpath,'COMPS')
-        if not os.path.isdir(comp_dir):
-            os.mkdir(comp_dir)
+    comp_dir = os.path.join(dirpath,'COMPS')
+    if not os.path.isdir(comp_dir):
+        os.mkdir(comp_dir)
         
+    for fname in filenames:
         fullpath = os.path.join(dirpath,fname)
         if 'nii.gz' in fullpath:
             hcp_data.append(fullpath)
