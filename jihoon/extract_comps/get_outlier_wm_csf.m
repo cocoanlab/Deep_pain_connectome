@@ -1,11 +1,11 @@
 function [outlier, wm, csf] = get_outlier_wm_csf(fmripath, savepath)
 
 addpath(genpath(pwd));
-addpath(genpath('/home/hahnz/Projects/Resources/spm12'));
+addpath(genpath('/home/hahnz/Resources/spm12'));
 
 tfmri = fmri_data(fmripath);
 
-[~, components] = extract_gray_white_csf(tfmri, 'masks', {which('gray_matter_mask.nii'),...
+[~, components] = extract_gray_white_csf(tfmri, 'masks', {which('gray_matter_mask.img'),...
 which('canonical_white_matter_thrp5_ero1.nii'), ...
 which('canonical_ventricles_thrp5_ero1.nii')});
 
