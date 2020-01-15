@@ -1,5 +1,4 @@
-function [outlier, wm, csf] = get_outlier_wm_csf(orig_path, preproc_path, savepath)
-
+function [outlier, wm, csf] = get_outlier_wm_csf(orig_path, preproc_path, save_path)
 addpath(genpath(pwd));
 addpath(genpath('/home/hahnz/Resources/spm12'));
 
@@ -18,5 +17,5 @@ fname = split(preproc_path, '/');
 fname = split(fname{end}, '.');
 fname = fname{1}+"_compounds.mat";
 
-clear orig tfmri components preproc_path orig_path
-save(savepath+fname);
+clear orig tfmri components preproc_path orig_path;
+save(save_path+fname);
