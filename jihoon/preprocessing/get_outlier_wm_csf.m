@@ -1,4 +1,7 @@
 function [outlier, wm, csf] = get_outlier_wm_csf(orig_path, preproc_path, save_path)
+
+maxNumCompThreads = 1;
+
 addpath(genpath(pwd));
 addpath(genpath('/home/hahnz/Resources/spm12'));
 
