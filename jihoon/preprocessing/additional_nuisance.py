@@ -51,7 +51,7 @@ for dirpath, _, filenames in os.walk(hcp_orig_dataset_root):
             hcp_nuisance.append(nuisance_path)
             
 
-mp = Pool(10)
+mp = Pool(20)
 pbar = tqdm(total=len(hcp_data))
 pbar.set_description('[ HPF ] : ')
 def update(result):
