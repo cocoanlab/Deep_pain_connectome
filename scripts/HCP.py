@@ -10,10 +10,10 @@ from tqdm import tqdm
 from sklearn.model_selection import ShuffleSplit
 
 class HCP:
-    def __init__(self, dataset_path, batch_size = 50, load_size = 300, gray_matter_only=False, mask_path=None,
-                 shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None, SEED=201703):
+    def __init__(self, dataset_path, batch_size = 50, load_size = 300, mask_path=None, recon_mask=True,
+                 standardize=False, shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None, SEED=201703):
         
-        if gray_matter_only and split_2d_at is not None:
+        if  mask_path is not None and split_2d_at is not None:
             raise ValueError('You cannot split gray matter data(1D) as 2D data.')
         
         self.task_list = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
@@ -21,10 +21,11 @@ class HCP:
         
         self.batch_size = batch_size
         self.load_size = load_size
-        self.gray_matter_only = gray_matter_only
+        self.recon_mask = recon_mask
         self.workers = workers
         self.shuffle = shuffle
         self.split_2d_at = split_2d_at
+        self.standardize = standardize
         
         self.hcp_path = []
         self.split_size = {}
@@ -32,20 +33,18 @@ class HCP:
         for dirlist, _, filelist in os.walk(dataset_path):
             data_count = 0
             tmp_path = []
-            for fname in filelist:
-                data_count+=1
-                tmp_path.append('/'.join([dirlist,fname]))
-            if data_count == 14:
-                self.hcp_path+=tmp_path
+            if 'hpf_result' in dirlist and len(filelist) != 0:
+                for fname in filelist:
+                    data_count+=1
+                    fullpath = os.path.join(dirlist,fname)
+                    tmp_path.append(fullpath)
+                if data_count == 14:
+                    self.hcp_path+=tmp_path
         
-        if gray_matter_only and mask_path is not None:
+        if mask_path is not None:
             masker = NiftiMasker(mask_strategy='epi')
             fitted_masker = masker.fit(mask_path)
             self.__masker_img = fitted_masker.mask_img_
-        elif not gray_matter_only:
-            pass
-        else : 
-            raise ValueError('Gray matter mask is required to extract it')
         
         Kfold_idx = ShuffleSplit(n_splits=num_total_K, test_size=1/num_total_K, random_state=SEED).split(self.hcp_path)
         Kfold_idx = [kfold for kfold in Kfold_idx]
@@ -76,8 +75,13 @@ class HCP:
         task = path.split('/')[-1].split('_')[1]
         task = self.task_list.index(task)
         task = [task for _ in range(raw.get_shape()[-1])]
-        if self.gray_matter_only :
+        if hasattr(self, '__masker_img') :
             data = apply_mask(raw, self.__masker_img)
+            if self.standardize :            
+                data -= data.mean(1)[:,np.newaxis]
+                data /= data.std(1)[:,np.newaxis]
+            if self.recon_mask : 
+                data = unmask(data, masker_img).get_fdata()
         else :
             data = raw.get_data()
             if self.split_2d_at is None :
@@ -138,7 +142,7 @@ class HCP:
         self.batchset['task'] = np.concatenate(labels, axis=0)
         fmri.clear()
         labels.clear()
-        if not self.gray_matter_only :
+        if not hasattr(self, '__masker_img') :
             if self.split_2d_at is None :
                 self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
             else :
