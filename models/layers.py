@@ -89,12 +89,12 @@ def batch_norm(data, is_train, name=None, data_format='channels_last',
         return tf.layers.batch_normalization(data, training=is_train, name=name, momentum=BN_MOMENTUM, axis=bn_axis,
                                              epsilon=BN_EPSILON, reuse=None, fused=USE_FUSED_BN)
 
-def fc(data, num_out, name=None, relu=True, bn=True, is_train=None):
+def fc(data, num_out, name=None, relu=True, bn=True, use_bias=False, is_train=None):
     if bn and is_train==None:
         raise ValueError('Phase should be declared "True" for train or "False" for test when you activate batch normalization.')
         
     with tf.variable_scope(name) as scope:
-        output = tf.layers.dense(inputs=data, use_bias=True, units=num_out)
+        output = tf.layers.dense(inputs=data, use_bias=use_bias, units=num_out)
         if bn : 
             output = batch_norm(output, is_train)
         if relu : 
