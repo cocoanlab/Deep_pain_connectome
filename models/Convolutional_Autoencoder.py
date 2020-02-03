@@ -16,9 +16,9 @@ class create():
         self.__dimension = '3d' if plain == 'total' else '2d'
         self.__cropping = {
             'total' : [
-                ((1, 0), (0, 0), (0, 1)),
-                ((0, 0), (1, 0), (0, 0)),
-                ((1, 0), (1, 0), (0, 1)),
+                ((0, 0), (0, 0), (0, 1)),
+                ((0, 0), (0, 0), (0, 0)),
+                ((1, 0), (1, 0), (0, 0)),
             ],
             'sagittal' : [
                 ((0, 0), (1, 0)),
@@ -65,17 +65,17 @@ class create():
         data = conv(data, 3, 32, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
-            
+        
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 64, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
-        
+
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 128, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         encoding_layers.append(data)
         data = max_pooling(data, ksize=3, ssize=2, mode=self.__dimension)
-        
+
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
         encoding_layers.append(data)
@@ -90,6 +90,10 @@ class create():
             data = tf.reshape(data, (-1,)+orig_shape)
             
             data = deconv(data, 3, 256, ssize=2, padding="SAME", deconv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
+            if self.__dimension == '2d' :
+                data = tf.keras.layers.Cropping2D(cropping=self.__cropping[self.plain][0])(data)
+            elif self.__dimension == '3d':
+                data = tf.keras.layers.Cropping3D(cropping=self.__cropping[self.plain][0])(data)
             if self.enable_sc:
                 data = tf.add(data, encoding_layers.pop())
             data = conv(data, 3, 256, ssize=1, padding="SAME", conv_mode=self.__dimension, use_bias=False, bn=True,act=True, is_train=self.is_train)
