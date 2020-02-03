@@ -10,7 +10,7 @@ from tqdm import tqdm
 from sklearn.model_selection import ShuffleSplit
 
 class HCP:
-    def __init__(self, dataset_path, batch_size = 50, load_size = 300, mask_path=None, recon_mask=True,
+    def __init__(self, dataset_path, batch_size = 50, load_size = 300, mask_path=None, recon_mask=True, gaussian_noise=False,
                  standardize=False, shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None, SEED=201703):
         
         if  mask_path is not None and split_2d_at is not None:
@@ -26,6 +26,7 @@ class HCP:
         self.shuffle = shuffle
         self.split_2d_at = split_2d_at
         self.standardize = standardize
+        self.gaussian_noise = gaussian_noise
         
         self.hcp_path = []
         self.split_size = {}
@@ -80,6 +81,13 @@ class HCP:
             if self.standardize :            
                 data -= data.mean(1)[:,np.newaxis]
                 data /= data.std(1)[:,np.newaxis]
+            if self.gaussian_noise :
+                for i, voxels in enumerate(data):
+                    sigma = voxels.std()
+                    noise = np.random.normal(0, sigma/5, len(voxels))
+                    voxels += noise
+
+                    data[i] = voxels
             if self.recon_mask : 
                 data = unmask(data, masker_img).get_fdata()
         else :
