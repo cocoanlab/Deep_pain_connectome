@@ -1,185 +1,111 @@
 import warnings ; warnings.filterwarnings('ignore')
-import os, gc
+import gc, pickle
 import numpy as np
 import nibabel as nib
+import tensorflow as tf
 
-from nilearn.input_data import NiftiMasker
-from nilearn.masking import apply_mask, unmask
+from nilearn.image import resample_img
 from multiprocessing import Pool
 from tqdm import tqdm
-from sklearn.model_selection import ShuffleSplit
 
 class HCP:
-    def __init__(self, dataset_path, batch_size = 50, load_size = 300, mask_path=None, recon_mask=True, gaussian_noise=False,
-                 standardize=False, shuffle=False, workers=4, num_total_K=5, test_K = 1, split_2d_at=None, SEED=201703):
+    def __init__(self, HCP_dataset_path, batch_size, N_fold=10, seed=201703,
+                 template_nii=None):
+        if template_nii is not None:
+            self.template = nib.load(template_nii)
         
-        if  mask_path is not None and split_2d_at is not None:
-            raise ValueError('You cannot split gray matter data(1D) as 2D data.')
-        
-        self.task_list = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
-        self.phase_list = ['train', 'valid']
+        np.random.seed(seed)
+        np.random.shuffle(HCP_dataset_path)
         
         self.batch_size = batch_size
-        self.load_size = load_size
-        self.recon_mask = recon_mask
-        self.workers = workers
-        self.shuffle = shuffle
-        self.split_2d_at = split_2d_at
-        self.standardize = standardize
-        self.gaussian_noise = gaussian_noise
+        self.Kfold_path = np.array_split(HCP_dataset_path,N_fold)
         
-        self.hcp_path = []
-        self.split_size = {}
-
-        for dirlist, _, filelist in os.walk(dataset_path):
-            data_count = 0
-            tmp_path = []
-            if 'hpf_result' in dirlist and len(filelist) != 0:
-                for fname in filelist:
-                    data_count+=1
-                    fullpath = os.path.join(dirlist,fname)
-                    tmp_path.append(fullpath)
-                if data_count == 14:
-                    self.hcp_path+=tmp_path
-        
-        if mask_path is not None:
-            masker = NiftiMasker(mask_strategy='epi')
-            fitted_masker = masker.fit(mask_path)
-            self.__masker_img = fitted_masker.mask_img_
-        
-        Kfold_idx = ShuffleSplit(n_splits=num_total_K, test_size=1/num_total_K, random_state=SEED).split(self.hcp_path)
-        Kfold_idx = [kfold for kfold in Kfold_idx]
-        self.Kfold_idx = Kfold_idx
-        
-        self.path_batchset = {}
-        self.path_len = {}
         self.batchset = {}
-        self.current_idx = {phase : 0 for phase in self.phase_list}
         
-        self.path_batchset['train'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][0]]
-        self.path_batchset['valid'] = [self.hcp_path[idx] for idx in Kfold_idx[test_K][1]]
-        
-        for phase in self.phase_list : 
-            data_length = len(self.path_batchset[phase])
-            rest = int(data_length % self.load_size)
-            num_batchs = int(data_length/self.load_size)
-            
-            if rest == 0:
-                self.path_batchset[phase] = np.array_split(self.path_batchset[phase], num_batchs)
-            elif rest != 0:
-                rest_batch = self.path_batchset[phase][-rest:]
-                self.path_batchset[phase] = np.array_split(self.path_batchset[phase][:-rest], num_batchs)
-                self.path_batchset[phase].append(rest_batch)
-            
-    def load_data(self, path):
-        raw = nib.load(path)
-        task = path.split('/')[-1].split('_')[1]
-        task = self.task_list.index(task)
-        task = [task for _ in range(raw.get_shape()[-1])]
-        if hasattr(self, '__masker_img') :
-            data = apply_mask(raw, self.__masker_img)
-            if self.standardize :            
-                data -= data.mean(1)[:,np.newaxis]
-                data /= data.std(1)[:,np.newaxis]
-            if self.gaussian_noise :
-                for i, voxels in enumerate(data):
-                    sigma = voxels.std()
-                    noise = np.random.normal(0, sigma/5, len(voxels))
-                    voxels += noise
-
-                    data[i] = voxels
-            if self.recon_mask : 
-                data = unmask(data, masker_img).get_fdata()
-        else :
-            data = raw.get_data()
-            if self.split_2d_at is None :
-                data = data.transpose(3,0,1,2)
-            elif self.split_2d_at == 'sagittal' :  
-                data = data.transpose(3,0,1,2)
-                _,_,a,b = data.shape
-                data = data.reshape(-1,a,b)
-            elif self.split_2d_at == 'coronal' :  
-                data = data.transpose(3,1,0,2)
-                _,_,a,b = data.shape
-                data = data.reshape(-1,a,b)
-            elif self.split_2d_at == 'axial' :  
-                data = data.transpose(3,2,0,1)
-                _,_,a,b = data.shape
-                data = data.reshape(-1,a,b)
-            else :
-                raise ValueError('Brain data plains must be one of among "sagittal", "coronal", and "axial".')
-            
-        task = path.split('/')[-1].split('_')[1]
-        task = self.task_list.index(task)
-        task = [task for _ in range(data.shape[0])]
-        if self.shuffle :
-            indices=np.random.permutation(len(data))
-            data = data[indices]
-            task = [task[i] for i in indices]
-        
-        if raw.in_memory : raw.uncache()
-        del raw
-        gc.collect()
-        return data, task
+        __dump_dat = pickle.load(open(self.Kfold_path[0][0],'rb'))
+        self.main_tasks = sorted(set([task.split('_')[0] for task in __dump_dat.keys()]))
+        self.sub_tasks = sorted(set([subtask for task in __dump_dat.values() for subtask in list(task.keys())]))
+        self.total_sample_num = 0
+        self.total_batch_num = 0
     
-    def load_batchset(self, phase):
+    def _count_num_data(self,path):
+        with open(path,'rb') as fin:
+            total_len = sum([1 for dat in pickle.load(fin).values() for _ in dat.values()])
+            
+        idx_start = list(range(0,total_len,self.batch_size))[:-1]
+        idx_end = list(range(0,total_len,self.batch_size))[1:]
+        cut_s_e = [[s,e] for s,e in zip(idx_start,idx_end)]
+        if idx_end[-1] < total_len:
+            cut_s_e.append([idx_end[-1],total_len])
+        return total_len, len(cut_s_e)
+            
+    def count_num_batch(self, validset_idx=None, n_jobs=36):
+        if  validset_idx is not None :
+            train_path = [self.Kfold_path[i] for i in range(len(self.Kfold_path)) if i != validset_idx]
+            train_path = np.concatenate(train_path)
+        else :
+            train_path = np.concatenate(self.Kfold_path)
+        mp = Pool(processes=n_jobs)
+        print('counting number of training batchset ...')
+        
+        total_sample_cnt = []
+        total_batch_cnt = []
+        pbar = tqdm(total=len(train_path))
+        def update(result):
+            total_sample_cnt.append(result[0])
+            total_batch_cnt.append(result[1])
+            pbar.update(1)
+        
+        
+        for path in train_path:
+            mp.apply_async(self._count_num_data, args=(path,), callback=update)
+
+        mp.close()
+        mp.join()
+        self.total_sample_num = sum(total_sample_cnt)
+        self.total_batch_num = sum(total_batch_cnt)
+        print(f'total number of samples = {self.total_sample_num}')
+        print(f'total number of batch = {self.total_batch_num}')
+        
+    def load(self, path):
+        img_list = []
+        lbl_list = []
+        with open(path,'rb') as fin:
+            for dat in pickle.load(fin).values():
+                for task, fmri in dat.items():
+                    fmri = resample_img(fmri, self.template.get_affine(), self.template.shape)
+                    img_list.append(fmri.get_fdata()[np.newaxis])
+                    lbl_list.append(self.sub_tasks.index(task))
+                    if fmri.in_memory : 
+                        fmri.uncache()
+                        del fmri
+                        gc.collect()
+        return np.vstack(img_list), np.array(lbl_list)
+        
+    def load_data(self, k_idx, n_jobs=36):
         self.batchset.clear()
-        idx = self.current_idx[phase]
-        path_list = self.path_batchset[phase][idx]
-
-        multiprocessor = Pool(processes=self.workers)
-        pbar = tqdm(path_list)
-        fmri=[]
-        labels=[]
-
-        def __update(result) :
-            data, task = result
-            fmri.append(data)
-            labels.append(task)
+        train_path = self.Kfold_path[k_idx]
+        fmri = []
+        task = []
+        
+        mp = Pool(processes=n_jobs)
+        pbar = tqdm(total=len(train_path))
+        
+        def update(result):
+            fmri.append(result[0])
+            task.append(result[1])
             pbar.update(1)
 
-        for path in path_list:
-            multiprocessor.apply_async(self.load_data, args=(path,), callback=__update)
+        for path in train_path:
+            mp.apply_async(self.load, args=(path,), callback=update)
 
-        multiprocessor.close()
-        multiprocessor.join()
+        mp.close()
+        mp.join()
         pbar.close()
-
-        self.batchset = {}
-        self.batchset['fmri'] = np.concatenate(fmri, axis=0)
-        self.batchset['task'] = np.concatenate(labels, axis=0)
+        
+        self.batchset['fmri'] = np.vstack(fmri)
+        self.batchset['task'] = np.concatenate(task)
         fmri.clear()
-        labels.clear()
-        if not hasattr(self, '__masker_img') :
-            if self.split_2d_at is None :
-                self.batchset['fmri'] = self.batchset['fmri'][:,:,:,:,np.newaxis]
-            else :
-                self.batchset['fmri'] = self.batchset['fmri'][:,:,:,np.newaxis]
-        
-        if self.batch_size == None : pass
-        else :
-            data_length = len(self.batchset['fmri'])
-            rest = int(data_length % self.batch_size)
-            num_batchs = int(data_length/self.batch_size)
-            
-            if rest == 0:
-                self.batchset['fmri'] = np.array_split(self.batchset['fmri'], num_batchs)
-                self.batchset['task'] = np.array_split(self.batchset['task'], num_batchs)
-            elif rest != 0:
-                rest_fmri_batch = self.batchset['fmri'][-rest:]
-                self.batchset['fmri'] = np.array_split(self.batchset['fmri'][:-rest], num_batchs)
-                self.batchset['fmri'].append(rest_fmri_batch)
-                
-                rest_task_batch = self.batchset['task'][-rest:]
-                self.batchset['task'] = np.array_split(self.batchset['task'][:-rest], num_batchs)
-                self.batchset['task'].append(rest_task_batch)
-        
-        if idx == len(self.path_batchset[phase])-1:
-            self.is_last = True
-            self.current_idx[phase] = 0
-        else :
-            self.is_last = False
-            self.current_idx[phase] += 1
-            
-        del fmri, labels
+        task.clear()
+        del fmri,task
         gc.collect()
