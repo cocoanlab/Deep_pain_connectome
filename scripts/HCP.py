@@ -78,13 +78,14 @@ class HCP:
         print(f'total number of samples = {self.total_sample_num}')
         print(f'total number of batch = {self.total_batch_num}')
         
-    def load(self, path, changetaskname=None):
+    def load(self, path):
         img_list = []
         lbl_list = []
         
         with open(path,'rb') as fin:
             for dat in pickle.load(fin).values():
                 for task, fmri in dat.items():
+                    if 'run' in task : task = 'heat_pain'
                     fmri = resample_img(fmri, self.template.get_affine(), self.template.shape)
                     img_list.append(fmri.get_fdata()[np.newaxis])
                     lbl_list.append(self.sub_tasks.index(task))
