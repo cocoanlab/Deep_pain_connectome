@@ -10,21 +10,32 @@ from tqdm import tqdm
 
 class HCP:
     def __init__(self, HCP_dataset_path, batch_size, N_fold=10, seed=201703,
-                 template_nii=None):
+                 template_nii=None, additional_task=None, additional_path=None):
         if template_nii is not None:
             self.template = nib.load(template_nii)
+        if additional_task is not None and type(additional_task) != list :
+            raise TypeError('additional_task should be given as list.')
+        if additional_path is not None and type(additional_path) != list :
+            raise TypeError('additional_path should be given as list.')
         
         np.random.seed(seed)
         np.random.shuffle(HCP_dataset_path)
         
         self.batch_size = batch_size
         self.Kfold_path = np.array_split(HCP_dataset_path,N_fold)
+        if additional_path is not None and additional_task is not None:
+            additional_Kfold_path = np.array_split(additional_path,N_fold)
+            self.Kfold_path = [np.concatenate((HCP, add)) for HCP, add in zip(self.Kfold_path, additional_Kfold_path)]
         
         self.batchset = {}
         
         __dump_dat = pickle.load(open(self.Kfold_path[0][0],'rb'))
         self.main_tasks = sorted(set([task.split('_')[0] for task in __dump_dat.keys()]))
         self.sub_tasks = sorted(set([subtask for task in __dump_dat.values() for subtask in list(task.keys())]))
+        if additional_task is not None :
+            self.main_tasks += additional_task
+            self.sub_tasks += additional_task
+            
         self.total_sample_num = 0
         self.total_batch_num = 0
     
@@ -67,9 +78,10 @@ class HCP:
         print(f'total number of samples = {self.total_sample_num}')
         print(f'total number of batch = {self.total_batch_num}')
         
-    def load(self, path):
+    def load(self, path, changetaskname=None):
         img_list = []
         lbl_list = []
+        
         with open(path,'rb') as fin:
             for dat in pickle.load(fin).values():
                 for task, fmri in dat.items():
@@ -80,11 +92,15 @@ class HCP:
                         fmri.uncache()
                         del fmri
                         gc.collect()
+                        
         return np.vstack(img_list), np.array(lbl_list)
         
-    def load_data(self, k_idx, n_jobs=36):
+    def load_data(self, k_idx, shuffle=False, n_jobs=36):
         self.batchset.clear()
         train_path = self.Kfold_path[k_idx]
+        if shuffle :
+            np.random.seed(None)
+            np.random.shuffle(train_path)
         fmri = []
         task = []
         
